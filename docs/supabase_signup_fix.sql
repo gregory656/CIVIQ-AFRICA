@@ -40,121 +40,6 @@ create table if not exists public.notifications (
   created_at timestamptz not null default now()
 );
 
-do $$
-declare
-  county record;
-  existing_id int;
-begin
-  for county in
-    select *
-    from (
-      values
-        (30, 'Nairobi'),
-        (1, 'Mombasa'),
-        (22, 'Kiambu')
-    ) as desired(id, name)
-  loop
-    select id
-      into existing_id
-      from public.counties
-      where lower(name) = lower(county.name)
-      limit 1;
-
-    if existing_id is null then
-      insert into public.counties (id, name)
-      values (county.id, county.name)
-      on conflict (id) do update set name = excluded.name;
-    elsif existing_id <> county.id then
-      insert into public.counties (id, name)
-      values (county.id, county.name || ' merge target ' || county.id::text)
-      on conflict (id) do nothing;
-
-      update public.subcounties
-      set county_id = county.id
-      where county_id = existing_id;
-
-      update public.profiles
-      set county_id = county.id
-      where county_id = existing_id;
-
-      delete from public.counties
-      where id = existing_id;
-      
-      update public.counties
-      set name = county.name
-      where id = county.id;
-    else
-      update public.counties
-      set name = county.name
-      where id = county.id;
-    end if;
-  end loop;
-end;
-$$;
-
-do $$
-declare
-  subcounty record;
-  existing_id int;
-begin
-  for subcounty in
-    select *
-    from (
-      values
-        (301, 30, 'Westlands'),
-        (302, 30, 'Kasarani'),
-        (303, 30, 'Embakasi East'),
-        (101, 1, 'Changamwe'),
-        (102, 1, 'Likoni'),
-        (103, 1, 'Nyali'),
-        (221, 22, 'Thika Town'),
-        (222, 22, 'Ruiru'),
-        (223, 22, 'Kikuyu')
-    ) as desired(id, county_id, name)
-  loop
-    select id
-      into existing_id
-      from public.subcounties
-      where county_id = subcounty.county_id
-        and lower(name) = lower(subcounty.name)
-      limit 1;
-
-    if existing_id is null then
-      insert into public.subcounties (id, county_id, name)
-      values (subcounty.id, subcounty.county_id, subcounty.name)
-      on conflict (id) do update
-      set county_id = excluded.county_id,
-          name = excluded.name;
-    elsif existing_id <> subcounty.id then
-      insert into public.subcounties (id, county_id, name)
-      values (
-        subcounty.id,
-        subcounty.county_id,
-        subcounty.name || ' merge target ' || subcounty.id::text
-      )
-      on conflict (id) do nothing;
-
-      update public.profiles
-      set subcounty_id = subcounty.id
-      where subcounty_id = existing_id;
-
-      delete from public.subcounties
-      where id = existing_id;
-
-      update public.subcounties
-      set county_id = subcounty.county_id,
-          name = subcounty.name
-      where id = subcounty.id;
-    else
-      update public.subcounties
-      set county_id = subcounty.county_id,
-          name = subcounty.name
-      where id = subcounty.id;
-    end if;
-  end loop;
-end;
-$$;
-
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_user_profile();
 drop function if exists public.generate_unique_civiq_code();
@@ -248,5 +133,20 @@ create policy "Users can modify notification read states"
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+grant select on public.counties to anon, authenticated;
+grant select on public.subcounties to anon, authenticated;
+
+do $$
+begin
+  if to_regclass('public.leaders') is not null then
+    grant select on public.leaders to anon, authenticated;
+  end if;
+
+  if to_regclass('public.v_geographic_governance') is not null then
+    grant select on public.v_geographic_governance to anon, authenticated;
+  end if;
+end;
+$$;
 
 commit;

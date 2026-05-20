@@ -56,6 +56,7 @@ class _AvatarUploadScreenState extends ConsumerState<AvatarUploadScreen> {
             email: user.email ?? '',
             avatarUrl: url,
           );
+      ref.invalidate(currentProfileProvider);
 
       if (mounted) context.go('/civiq-code');
     } catch (error) {

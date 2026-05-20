@@ -1,9 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/brand_mark.dart';
 import '../../../../features/auth/data/auth_repository.dart';
+import '../../../../features/locations/data/location_repository.dart';
+import '../../../../features/profile/data/profile_repository.dart';
+import '../../../../shared/models/kenya_location.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -142,40 +147,17 @@ class _ShellBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (index == 4) {
-      final user = ref.watch(authRepositoryProvider).currentUser;
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const CircleAvatar(
-            radius: 42,
-            backgroundColor: AppColors.border,
-            child: Icon(Icons.person_outline, size: 40),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            user?.email ?? 'CIVIQ Member',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 22),
-          const _SettingsTile(icon: Icons.security_outlined, label: 'Security'),
-          const _SettingsTile(icon: Icons.lock_outline, label: 'Privacy'),
-          const _SettingsTile(
-            icon: Icons.notifications_outlined,
-            label: 'Notifications',
-          ),
-          const _SettingsTile(
-            icon: Icons.download_outlined,
-            label: 'Export data',
-          ),
-          const _SettingsTile(
-            icon: Icons.delete_outline,
-            label: 'Delete account',
-            danger: true,
-          ),
-        ],
+      final profile = ref.watch(currentProfileProvider);
+      final locations = ref.watch(governanceLocationsProvider);
+      return profile.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _ProfileError(error: error),
+        data: (profile) => locations.when(
+          loading: () => _ProfileTab(profile: profile, counties: kenyaCounties),
+          error: (_, _) =>
+              _ProfileTab(profile: profile, counties: kenyaCounties),
+          data: (counties) => _ProfileTab(profile: profile, counties: counties),
+        ),
       );
     }
 
@@ -201,6 +183,261 @@ class _ShellBody extends ConsumerWidget {
   }
 }
 
+class _ProfileTab extends ConsumerWidget {
+  const _ProfileTab({required this.profile, required this.counties});
+
+  final CiviqProfile? profile;
+  final List<KenyaCounty> counties;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final county = _countyName(profile?.countyId, counties);
+    final subcounty = _subcountyName(
+      profile?.countyId,
+      profile?.subcountyId,
+      counties,
+    );
+    final displayName = profile?.username?.isNotEmpty == true
+        ? '@${profile!.username}'
+        : 'CIVIQ Member';
+    final code = profile?.civiqCode?.isNotEmpty == true
+        ? profile!.civiqCode!
+        : 'Pending code';
+
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(currentProfileProvider),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        children: [
+          Center(child: _ProfileAvatar(url: profile?.avatarUrl)),
+          const SizedBox(height: 16),
+          Text(
+            displayName,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            profile?.email ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.grey),
+          ),
+          const SizedBox(height: 18),
+          _CodePanel(code: code),
+          const SizedBox(height: 18),
+          _ProfileDetail(
+            icon: Icons.notes_outlined,
+            label: 'Bio',
+            value: profile?.bio?.isNotEmpty == true
+                ? profile!.bio!
+                : 'No bio added yet.',
+          ),
+          _ProfileDetail(
+            icon: Icons.location_on_outlined,
+            label: 'County',
+            value: county ?? 'Not selected',
+          ),
+          _ProfileDetail(
+            icon: Icons.map_outlined,
+            label: 'Sub-county',
+            value: subcounty ?? 'Not selected',
+          ),
+          const SizedBox(height: 14),
+          const _SettingsTile(icon: Icons.security_outlined, label: 'Security'),
+          const _SettingsTile(icon: Icons.lock_outline, label: 'Privacy'),
+          const _SettingsTile(
+            icon: Icons.notifications_outlined,
+            label: 'Notifications',
+          ),
+          const _SettingsTile(
+            icon: Icons.download_outlined,
+            label: 'Export data',
+          ),
+          const _SettingsTile(
+            icon: Icons.delete_outline,
+            label: 'Delete account',
+            danger: true,
+          ),
+          _SettingsTile(
+            icon: Icons.logout,
+            label: 'Logout',
+            onTap: () async {
+              await ref.read(authRepositoryProvider).signOut();
+              ref.invalidate(currentProfileProvider);
+              if (context.mounted) context.go('/intro');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _countyName(int? countyId, List<KenyaCounty> counties) {
+    if (countyId == null) return null;
+    for (final county in counties) {
+      if (county.id == countyId) return county.name;
+    }
+    return null;
+  }
+
+  String? _subcountyName(
+    int? countyId,
+    int? subcountyId,
+    List<KenyaCounty> counties,
+  ) {
+    if (countyId == null || subcountyId == null) return null;
+    for (final county in counties) {
+      if (county.id != countyId) continue;
+      for (final subcounty in county.subcounties) {
+        if (subcounty.id == subcountyId) return subcounty.name;
+      }
+    }
+    return null;
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = url;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return const CircleAvatar(
+        radius: 48,
+        backgroundColor: AppColors.border,
+        child: Icon(Icons.person_outline, size: 42),
+      );
+    }
+
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: 96,
+        height: 96,
+        fit: BoxFit.cover,
+        placeholder: (context, url) =>
+            const CircleAvatar(radius: 48, backgroundColor: AppColors.border),
+        errorWidget: (context, url, error) => const CircleAvatar(
+          radius: 48,
+          backgroundColor: AppColors.border,
+          child: Icon(Icons.person_outline, size: 42),
+        ),
+      ),
+    );
+  }
+}
+
+class _CodePanel extends StatelessWidget {
+  const _CodePanel({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.key_outlined, color: AppColors.primaryGreen),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'CIVIQ Code',
+                  style: TextStyle(color: AppColors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  code,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileDetail extends StatelessWidget {
+  const _ProfileDetail({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: AppColors.primaryGreen),
+      title: Text(label),
+      subtitle: Text(value),
+    );
+  }
+}
+
+class _ProfileError extends ConsumerWidget {
+  const _ProfileError({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppColors.dangerRed,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Could not load profile.',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.grey),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => ref.invalidate(currentProfileProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DrawerItem extends StatelessWidget {
   const _DrawerItem({required this.icon, required this.label});
 
@@ -218,11 +455,13 @@ class _SettingsTile extends StatelessWidget {
     required this.icon,
     required this.label,
     this.danger = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool danger;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +470,7 @@ class _SettingsTile extends StatelessWidget {
       leading: Icon(icon, color: color),
       title: Text(label, style: TextStyle(color: color)),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () {},
+      onTap: onTap,
     );
   }
 }

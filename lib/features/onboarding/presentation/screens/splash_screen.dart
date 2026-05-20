@@ -1,19 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../features/auth/data/auth_repository.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fall;
@@ -29,7 +31,9 @@ class _SplashScreenState extends State<SplashScreen>
     _fall = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
     Timer(const Duration(seconds: 2), () {
-      if (mounted) context.go('/intro');
+      if (!mounted) return;
+      final session = ref.read(authRepositoryProvider).currentSession;
+      context.go(session == null ? '/intro' : '/home');
     });
   }
 

@@ -3,18 +3,29 @@ class KenyaCounty {
     required this.id,
     required this.name,
     required this.subcounties,
+    this.governorName,
+    this.governorParty,
   });
 
   final int id;
   final String name;
+  final String? governorName;
+  final String? governorParty;
   final List<KenyaSubcounty> subcounties;
 }
 
 class KenyaSubcounty {
-  const KenyaSubcounty({required this.id, required this.name});
+  const KenyaSubcounty({
+    required this.id,
+    required this.name,
+    this.mpName,
+    this.mpParty,
+  });
 
   final int id;
   final String name;
+  final String? mpName;
+  final String? mpParty;
 }
 
 const kenyaCounties = [

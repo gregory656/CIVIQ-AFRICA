@@ -21,6 +21,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _passwordController = TextEditingController();
   bool _isLogin = false;
   bool _loading = false;
+  bool _obscurePassword = true;
   String? _error;
 
   @override
@@ -111,11 +112,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
+                  obscureText: _obscurePassword,
+                  decoration:
+                      const InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ).copyWith(
+                        suffixIcon: IconButton(
+                          tooltip: _obscurePassword
+                              ? 'Show password'
+                              : 'Hide password',
+                          onPressed: () {
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
+                          },
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
                   validator: (value) {
                     if (value == null || value.length < 6) {
                       return 'Use at least 6 characters.';

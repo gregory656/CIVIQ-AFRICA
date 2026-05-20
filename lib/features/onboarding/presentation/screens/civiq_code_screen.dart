@@ -18,23 +18,50 @@ class CiviqCodeScreen extends ConsumerStatefulWidget {
 
 class _CiviqCodeScreenState extends ConsumerState<CiviqCodeScreen> {
   late String _code = widget.code;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    if (_code.isEmpty) {
-      _code = ref.read(profileRepositoryProvider).generateCiviqCode();
-      final user = ref.read(authRepositoryProvider).currentUser;
-      if (user != null) {
-        ref
-            .read(profileRepositoryProvider)
-            .upsertProfile(
-              userId: user.id,
-              email: user.email ?? '',
-              civiqCode: _code,
-            );
-      }
+    _loadCode();
+  }
+
+  Future<void> _loadCode() async {
+    if (_code.isNotEmpty) {
+      setState(() => _loading = false);
+      return;
     }
+
+    final profileRepo = ref.read(profileRepositoryProvider);
+    final user = ref.read(authRepositoryProvider).currentUser;
+    if (user == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    final profile = await profileRepo.getProfile(user.id);
+    if (!mounted) return;
+    final storedCode = profile?.civiqCode;
+    if (storedCode != null && storedCode.isNotEmpty) {
+      setState(() {
+        _code = storedCode;
+        _loading = false;
+      });
+      return;
+    }
+
+    final generatedCode = profileRepo.generateCiviqCode();
+    await profileRepo.upsertProfile(
+      userId: user.id,
+      email: user.email ?? '',
+      civiqCode: generatedCode,
+    );
+    ref.invalidate(currentProfileProvider);
+    if (!mounted) return;
+    setState(() {
+      _code = generatedCode;
+      _loading = false;
+    });
   }
 
   @override
@@ -53,13 +80,16 @@ class _CiviqCodeScreenState extends ConsumerState<CiviqCodeScreen> {
                 color: AppColors.primaryGreen,
               ),
               const SizedBox(height: 24),
-              Text(
-                _code,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+              if (_loading)
+                const CircularProgressIndicator()
+              else
+                Text(
+                  _code,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
                 ),
-              ),
               const SizedBox(height: 12),
               const Text(
                 'Use this code to connect privately with others.',
@@ -68,12 +98,14 @@ class _CiviqCodeScreenState extends ConsumerState<CiviqCodeScreen> {
               ),
               const SizedBox(height: 24),
               OutlinedButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _code));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('CIVIQ code copied')),
-                  );
-                },
+                onPressed: _loading || _code.isEmpty
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(text: _code));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('CIVIQ code copied')),
+                        );
+                      },
                 icon: const Icon(Icons.copy_outlined),
                 label: const Text('Copy'),
               ),
