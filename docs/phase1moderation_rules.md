@@ -9,6 +9,6 @@
 
 ## Later Work
 
-- Add automated suspicious behavior detection.
-- Add report review queues.
-- Add clear user-facing dispute and account recovery flows.
+- Automated suspicious behavior detection.
+- Report review queues.
+- Clear user-facing dispute and account recovery flows.

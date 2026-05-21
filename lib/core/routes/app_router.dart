@@ -4,12 +4,16 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/terms_screen.dart';
 import '../../features/home/presentation/screens/app_shell.dart';
+import '../../features/legal/presentation/screens/legal_document_screen.dart';
+import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/onboarding/presentation/screens/avatar_upload_screen.dart';
 import '../../features/onboarding/presentation/screens/civiq_code_screen.dart';
 import '../../features/onboarding/presentation/screens/intro_screen.dart';
 import '../../features/onboarding/presentation/screens/notification_permission_screen.dart';
 import '../../features/onboarding/presentation/screens/profile_setup_screen.dart';
 import '../../features/onboarding/presentation/screens/splash_screen.dart';
+import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/profile/presentation/screens/security_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -19,9 +23,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/intro', builder: (context, state) => const IntroScreen()),
       GoRoute(path: '/terms', builder: (context, state) => const TermsScreen()),
       GoRoute(
-        path: '/auth',
+        path: '/legal/privacy-policy',
         builder: (context, state) =>
-            AuthScreen(initialMode: state.uri.queryParameters['mode']),
+            const LegalDocumentScreen(document: LegalDocument.privacyPolicy),
+      ),
+      GoRoute(
+        path: '/legal/terms',
+        builder: (context, state) =>
+            const LegalDocumentScreen(document: LegalDocument.terms),
+      ),
+      GoRoute(
+        path: '/legal/community-guidelines',
+        builder: (context, state) => const LegalDocumentScreen(
+          document: LegalDocument.communityGuidelines,
+        ),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/security',
+        builder: (context, state) => const SecurityScreen(),
+      ),
+      GoRoute(
+        path: '/profile/edit',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/auth',
+        builder: (context, state) => AuthScreen(
+          initialMode: state.uri.queryParameters['mode'],
+          initialLegalAccepted:
+              state.uri.queryParameters['acceptedLegal'] == 'true',
+        ),
       ),
       GoRoute(
         path: '/profile-setup',

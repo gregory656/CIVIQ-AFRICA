@@ -89,12 +89,12 @@ class _AvatarUploadScreenState extends ConsumerState<AvatarUploadScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Upload a square profile image.',
+                'Upload a profile pic.',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               const Text(
-                'The app stores only the Cloudinary URL in Supabase.',
+                'The app stores only the URL...',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.grey),
               ),
@@ -109,7 +109,7 @@ class _AvatarUploadScreenState extends ConsumerState<AvatarUploadScreen> {
               OutlinedButton.icon(
                 onPressed: _loading ? null : _pickImage,
                 icon: const Icon(Icons.image_outlined),
-                label: const Text('Choose Image'),
+                label: const Text('Pic a photo'),
               ),
               const SizedBox(height: 10),
               FilledButton(

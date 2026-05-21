@@ -4,12 +4,18 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/brand_mark.dart';
+import '../../../../features/legal/data/legal_repository.dart';
 import '../../data/auth_repository.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
-  const AuthScreen({super.key, this.initialMode});
+  const AuthScreen({
+    super.key,
+    this.initialMode,
+    this.initialLegalAccepted = false,
+  });
 
   final String? initialMode;
+  final bool initialLegalAccepted;
 
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
@@ -22,12 +28,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _isLogin = false;
   bool _loading = false;
   bool _obscurePassword = true;
+  bool _acceptedLegal = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _isLogin = widget.initialMode == 'login';
+    _acceptedLegal = widget.initialLegalAccepted;
   }
 
   @override
@@ -39,6 +47,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_isLogin && !_acceptedLegal) {
+      setState(
+        () => _error = 'Accept the legal terms before creating an account.',
+      );
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -52,10 +66,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           password: _passwordController.text,
         );
       } else {
-        await auth.signUp(
+        final response = await auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+        final userId = response.user?.id ?? auth.currentUser?.id;
+        if (userId != null) {
+          await ref
+              .read(legalRepositoryProvider)
+              .recordSignupAcceptances(userId);
+        }
       }
 
       if (!mounted) return;
@@ -91,7 +111,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 Text(
                   _isLogin
                       ? 'Sign in with your email and password.'
-                      : 'Start with email and password. OTP, biometrics, and 2FA come later.',
+                      : 'Start with email and password.Add OTP, biometrics, and 2FA  later.',
                   style: const TextStyle(color: AppColors.grey),
                 ),
                 const SizedBox(height: 28),
@@ -141,6 +161,37 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     return null;
                   },
                 ),
+                if (!_isLogin) ...[
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: _acceptedLegal,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: AppColors.primaryGreen,
+                    onChanged: _loading
+                        ? null
+                        : (value) =>
+                              setState(() => _acceptedLegal = value ?? false),
+                    title: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('I agree to the '),
+                        _InlineLegalLink(label: 'Terms', route: '/legal/terms'),
+                        const Text(', '),
+                        _InlineLegalLink(
+                          label: 'Privacy Policy',
+                          route: '/legal/privacy-policy',
+                        ),
+                        const Text(', and '),
+                        _InlineLegalLink(
+                          label: 'Community Guidelines',
+                          route: '/legal/community-guidelines',
+                        ),
+                        const Text('.'),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   Text(
@@ -150,7 +201,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ],
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: _loading ? null : _submit,
+                  onPressed: _loading || (!_isLogin && !_acceptedLegal)
+                      ? null
+                      : _submit,
                   child: _loading
                       ? const SizedBox.square(
                           dimension: 20,
@@ -162,16 +215,40 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 TextButton(
                   onPressed: _loading
                       ? null
-                      : () => setState(() => _isLogin = !_isLogin),
+                      : () => setState(() {
+                          _isLogin = !_isLogin;
+                          _error = null;
+                        }),
                   child: Text(
                     _isLogin
-                        ? 'Need an account? Create one'
+                        ? 'New Here? Create An Account'
                         : 'Already have an account? Login',
                   ),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineLegalLink extends StatelessWidget {
+  const _InlineLegalLink({required this.label, required this.route});
+
+  final String label;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push(route),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.primaryGreen,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

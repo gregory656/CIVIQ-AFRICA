@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/local_notification_service.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 
@@ -21,13 +22,25 @@ class _NotificationPermissionScreenState
   Future<void> _continue() async {
     setState(() => _loading = true);
     final user = ref.read(authRepositoryProvider).currentUser;
+    await LocalNotificationService.instance.requestPermission();
     if (user != null) {
       try {
         await ref
             .read(notificationRepositoryProvider)
             .createWelcomeNotifications(user.id);
+        await LocalNotificationService.instance.show(
+          id: 1001,
+          title: 'Welcome to CIVIQ Africa.',
+          body:
+              'Read our guidelines and help improve your community responsibly.',
+        );
+        await LocalNotificationService.instance.show(
+          id: 1002,
+          title: 'Create your first civic project report.',
+          body: 'Engage your local leadership and track development near you.',
+        );
       } catch (_) {
-        // Push delivery is added later with FCM/APNs; don't block onboarding.
+        // Remote push delivery is added later with FCM/APNs; don't block onboarding.
       }
     }
     if (mounted) context.go('/home');
@@ -57,14 +70,14 @@ class _NotificationPermissionScreenState
               ),
               const SizedBox(height: 10),
               const Text(
-                'Notification delivery will use FCM/APNs later. For now CIVIQ creates your first in-app alerts.',
+                'Get real-time notifications and alerts...',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.grey),
               ),
               const Spacer(),
               FilledButton(
                 onPressed: _loading ? null : _continue,
-                child: Text(_loading ? 'Preparing...' : 'Continue to Home'),
+                child: Text(_loading ? 'Almost there...' : 'Continue to Home'),
               ),
             ],
           ),

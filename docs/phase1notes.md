@@ -14,6 +14,11 @@ Phase 1 focused on making the app buildable, branded, sign-up capable, and usabl
 - County/sub-county selection uses the governance data from Supabase.
 - Sessions persist until the user explicitly logs out.
 - Android launcher icon and native splash use CIVIQ assets.
+- Legal policy routes are readable before acceptance.
+- Signup logs legal acceptance with policy version.
+- Welcome notifications are stored in Supabase and shown as local device notifications.
+- Profile no longer exposes full email publicly.
+- Danger Zone supports password-confirmed soft-delete requests.
 
 ## Important Files
 
@@ -22,8 +27,16 @@ Phase 1 focused on making the app buildable, branded, sign-up capable, and usabl
 | `lib/main.dart` | Loads `.env.client`, initializes Supabase, starts the app. |
 | `lib/core/config/env.dart` | Central accessors for required environment variables. |
 | `lib/core/services/supabase_service.dart` | Riverpod provider for `Supabase.instance.client`. |
+| `lib/core/services/local_notification_service.dart` | Initializes local notifications and shows device alerts with sound. |
 | `lib/features/auth/data/auth_repository.dart` | Thin wrapper around Supabase Auth. |
 | `lib/features/auth/presentation/screens/auth_screen.dart` | Login/create account UI. Includes password visibility toggle. |
+| `lib/features/auth/presentation/screens/terms_screen.dart` | Pre-signup legal agreement screen with links to real legal pages. |
+| `lib/features/legal/data/legal_repository.dart` | Records policy acceptance rows for signup. |
+| `lib/features/legal/presentation/screens/legal_document_screen.dart` | Displays Privacy Policy, Terms, and Community Guidelines. |
+| `lib/features/notifications/data/notification_repository.dart` | Creates, reads, counts, and marks notification rows. |
+| `lib/features/notifications/presentation/screens/notifications_screen.dart` | Displays database-backed notifications and mark-all-read action. |
+| `lib/features/account/data/account_repository.dart` | Creates account deletion requests and security events. |
+| `lib/features/profile/presentation/screens/security_screen.dart` | Shows masked account email and Phase 1 security settings. |
 | `lib/features/onboarding/presentation/screens/splash_screen.dart` | App splash routing. Sends logged-in users to `/home`. |
 | `lib/features/onboarding/presentation/screens/profile_setup_screen.dart` | Searchable onboarding form for profile, county, sub-county, leaders. |
 | `lib/features/onboarding/presentation/screens/avatar_upload_screen.dart` | Uploads avatar to Cloudinary and saves URL in `profiles.avatar_url`. |
@@ -32,6 +45,7 @@ Phase 1 focused on making the app buildable, branded, sign-up capable, and usabl
 | `lib/features/locations/data/location_repository.dart` | Reads `v_geographic_governance` and maps it into app models. |
 | `lib/shared/models/kenya_location.dart` | County/sub-county model with governor/MP fields. |
 | `docs/supabase_signup_fix.sql` | Repair script for auth/profile trigger, RLS policies, grants. |
+| `supabase/migrations/20260521130000_phase1_security_compliance.sql` | Deployed migration for legal logs, account deletion requests, RLS, and indexes. |
 | `android/app/src/main/res/...` | Native Android launcher icon and splash resources. |
 
 ## Constants And Assets
@@ -52,6 +66,16 @@ Optional in the client:
 - `CLOUDINARY_API_KEY`
 
 Server-only values, such as `SUPABASE_SERVICE_ROLE` and `CLOUDINARY_API_SECRET`, should stay out of `.env.client`.
+
+### Notification Dependency
+
+Phase 1 uses:
+
+```yaml
+flutter_local_notifications: ^21.0.0
+```
+
+This is used for local device alerts only. Remote push delivery through FCM/APNs is future work.
 
 ### Asset Constants
 
@@ -109,7 +133,7 @@ Important columns:
 
 ### `counties`
 
-County reference table. The full 47-county seed comes from the SQL you already have in the `.md` instructions file.
+County reference table. The full 47-county seed comes from the SQL I already have in the `.md` instructions file.
 
 ### `subcounties`
 
@@ -134,6 +158,35 @@ Important columns:
 - `title`
 - `body`
 - `is_read`
+
+The bell icon reads this table and shows an unread badge. The notifications screen can mark all rows read for the current user.
+
+### `legal_acceptance_logs`
+
+Policy acceptance proof.
+
+Important columns:
+
+- `user_id`: references `profiles(id)`.
+- `policy_type`: `privacy_policy`, `terms`, or `community_guidelines`.
+- `policy_name`: backward-compatible policy name field.
+- `policy_version`: current version string, currently `2026-05-21`.
+- `accepted_at`
+- `ip_address`, `device_id`, `user_agent`: evidence fields for later backend capture.
+
+### `account_deletion_requests`
+
+Soft-delete request table.
+
+Important columns:
+
+- `user_id`
+- `requested_at`
+- `scheduled_purge_at`
+- `cancelled_at`
+- `completed_at`
+
+Phase 1 creates a row here after password confirmation. Permanent purge is a later backend job.
 
 ### `v_geographic_governance`
 
@@ -168,6 +221,22 @@ public.profiles
     | 1:N
     v
 public.notifications
+  user_id FK -> public.profiles.id
+
+public.profiles
+  id uuid PK/FK -> auth.users.id
+    |
+    | 1:N
+    v
+public.legal_acceptance_logs
+  user_id FK -> public.profiles.id
+
+public.profiles
+  id uuid PK/FK -> auth.users.id
+    |
+    | 1:1 active request
+    v
+public.account_deletion_requests
   user_id FK -> public.profiles.id
 
 public.counties
@@ -217,6 +286,24 @@ The trigger inserts:
 - `profiles.email`
 - `profiles.civiq_code`
 
+After signup, Flutter records legal acceptance rows for:
+
+- `privacy_policy`
+- `terms`
+- `community_guidelines`
+
+The app writes both `policy_type` and `policy_name` when the deployed migration is present. It falls back to the older `policy_name` shape if the migration is not present, so signup does not break in older databases.
+
+### Legal Pages
+
+Implemented routes:
+
+- `/legal/privacy-policy`
+- `/legal/terms`
+- `/legal/community-guidelines`
+
+These are readable from the terms screen and app drawer. Text is a product baseline and still needs qualified Kenyan legal review before launch.
+
 ### Profile Setup
 
 The onboarding screen updates the existing profile row with:
@@ -245,6 +332,41 @@ The code screen first reads `profiles.civiq_code`. It generates a local code onl
 Reason:
 
 The database trigger should be the primary code creator. This keeps one stable unique code per user.
+
+The profile screen also exposes a copy button for the CIVIQ code and shows `CIVIQ code copied` after copying.
+
+### Notifications
+
+After onboarding, the app creates two Supabase notification rows:
+
+1. `Welcome to CIVIQ Africa.`
+2. `Create your first civic project report.`
+
+The same two messages are also shown through `flutter_local_notifications`. On Android, this uses the `CIVIQ Alerts` channel with `Importance.high`, `Priority.high`, and default sound enabled.
+
+The user will hear sound only when:
+
+- notification permission is granted,
+- the phone is not muted or in Do Not Disturb,
+- Android settings have not muted the `CIVIQ Alerts` channel.
+
+The `POST_NOTIFICATIONS` permission is declared in `android/app/src/main/AndroidManifest.xml` for Android 13+.
+
+### Profile Security And Danger Zone
+
+The public profile area no longer shows the full email. Email is shown only in:
+
+```text
+Profile -> Security -> Account Information
+```
+
+The email is masked, for example:
+
+```text
+greg***@gmail.com
+```
+
+Danger Zone now contains delete account and logout. Delete account requires password confirmation, creates an `account_deletion_requests` row, writes a `security_events` row, and signs the user out.
 
 ### Session Persistence
 
@@ -319,6 +441,53 @@ Correct order:
 2. Run `docs/supabase_signup_fix.sql`.
 3. Test sign-up with a fresh email.
 
+## Supabase CLI And Deployment
+
+Supabase CLI is installed manually at:
+
+```text
+C:\SupabaseCLI
+```
+
+The default `supabase.exe` from the downloaded Windows release crashed on this machine, so the working `supabase-go.exe` binary was copied to `supabase.exe`.
+
+Verified CLI:
+
+```powershell
+supabase --version
+```
+
+Result:
+
+```text
+2.101.0
+```
+
+Remote project linked:
+
+```powershell
+supabase link --project-ref jbydwuvdxbmadyrfuljk
+```
+
+Migration pushed:
+
+```powershell
+supabase db push
+```
+
+Verified:
+
+```powershell
+supabase migration list
+```
+
+Result:
+
+```text
+Local          | Remote
+20260521130000 | 20260521130000
+```
+
 ## Android Build Fixes
 
 Gradle was hanging because `android/gradle.properties` had memory settings too large for the machine.
@@ -368,19 +537,19 @@ android/app/src/main/res/values-v31/styles.xml
 
 ## Current Verification
 
-Phase 1 was verified with:
+Current analysis was verified with:
 
 ```powershell
-dart analyze <touched files>
+flutter analyze --no-pub
 ```
 
 Result:
 
 ```text
-No issues found
+No errors. Six existing style infos remain in lib/features/profile/data/profile_repository.dart about null-aware map elements.
 ```
 
-Android build:
+Earlier Android build verification:
 
 ```powershell
 cd android
@@ -398,5 +567,6 @@ BUILD SUCCESSFUL
 - The app currently depends on `v_geographic_governance` being present and readable in Supabase.
 - The local `kenya_location.dart` list is only a fallback and is not the source of truth.
 - Some tabs are placeholders: Home Feed, Rankings, Projects, Chats.
-- Notification delivery is in-app only; FCM/APNs is future work.
+- Local notification sound has been added for onboarding welcome messages, but remote push delivery through FCM/APNs is future work.
+- Full PIN/biometric app lock is designed in the security screen but not fully implemented yet.
 - Production signing and release icon validation still need a release build pass.

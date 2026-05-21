@@ -36,10 +36,17 @@ class _TermsScreenState extends State<TermsScreen> {
               const SizedBox(height: 24),
               Wrap(
                 spacing: 8,
-                children: const [
-                  _LegalChip(label: 'Privacy Policy'),
-                  _LegalChip(label: 'Terms'),
-                  _LegalChip(label: 'Community Guidelines'),
+                runSpacing: 8,
+                children: [
+                  _LegalChip(
+                    label: 'Privacy Policy',
+                    route: '/legal/privacy-policy',
+                  ),
+                  _LegalChip(label: 'Terms', route: '/legal/terms'),
+                  _LegalChip(
+                    label: 'Community Guidelines',
+                    route: '/legal/community-guidelines',
+                  ),
                 ],
               ),
               const Spacer(),
@@ -55,7 +62,7 @@ class _TermsScreenState extends State<TermsScreen> {
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: _accepted
-                    ? () => context.go('/auth?mode=signup')
+                    ? () => context.go('/auth?mode=signup&acceptedLegal=true')
                     : null,
                 child: const Text('Continue'),
               ),
@@ -68,15 +75,16 @@ class _TermsScreenState extends State<TermsScreen> {
 }
 
 class _LegalChip extends StatelessWidget {
-  const _LegalChip({required this.label});
+  const _LegalChip({required this.label, required this.route});
 
   final String label;
+  final String route;
 
   @override
   Widget build(BuildContext context) {
     return ActionChip(
       label: Text(label),
-      onPressed: () {},
+      onPressed: () => context.push(route),
       side: const BorderSide(color: AppColors.border),
       backgroundColor: AppColors.white,
     );

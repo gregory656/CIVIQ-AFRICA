@@ -1,12 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/brand_mark.dart';
+import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
+import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../shared/models/kenya_location.dart';
 
@@ -37,28 +40,34 @@ class _AppShellState extends ConsumerState<AppShell> {
         child: SafeArea(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            children: const [
-              Padding(
+            children: [
+              const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: BrandMark(size: 38),
               ),
-              Divider(),
-              _DrawerItem(icon: Icons.help_outline, label: 'FAQ'),
+              const Divider(),
+              const _DrawerItem(icon: Icons.help_outline, label: 'FAQ'),
               _DrawerItem(
                 icon: Icons.groups_outlined,
                 label: 'Community Guidelines',
+                route: '/legal/community-guidelines',
               ),
-              _DrawerItem(icon: Icons.gavel_outlined, label: 'Legal'),
               _DrawerItem(
+                icon: Icons.gavel_outlined,
+                label: 'Terms',
+                route: '/legal/terms',
+              ),
+              const _DrawerItem(
                 icon: Icons.assignment_return_outlined,
                 label: 'Appeals',
               ),
               _DrawerItem(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy Policy',
+                route: '/legal/privacy-policy',
               ),
-              _DrawerItem(icon: Icons.info_outline, label: 'About'),
-              _DrawerItem(icon: Icons.mail_outline, label: 'Contact'),
+              const _DrawerItem(icon: Icons.info_outline, label: 'About'),
+              const _DrawerItem(icon: Icons.mail_outline, label: 'Contact'),
             ],
           ),
         ),
@@ -72,20 +81,23 @@ class _AppShellState extends ConsumerState<AppShell> {
             children: [
               IconButton(
                 tooltip: 'Notifications',
-                onPressed: () {},
+                onPressed: () => context.push('/notifications'),
                 icon: const Icon(Icons.notifications_outlined),
               ),
-              Positioned(
-                top: 13,
-                right: 12,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.dangerRed,
-                    shape: BoxShape.circle,
-                  ),
-                ),
+              Consumer(
+                builder: (context, ref, _) {
+                  final unread = ref.watch(unreadNotificationCountProvider);
+                  return unread.maybeWhen(
+                    data: (count) => count > 0
+                        ? Positioned(
+                            top: 11,
+                            right: 10,
+                            child: _UnreadBadge(count: count),
+                          )
+                        : const SizedBox.shrink(),
+                    orElse: () => const SizedBox.shrink(),
+                  );
+                },
               ),
             ],
           ),
@@ -106,7 +118,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search projects...',
+                hintText: 'Search anything...',
                 prefixIcon: const Icon(Icons.search),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -220,14 +232,20 @@ class _ProfileTab extends ConsumerWidget {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
-          Text(
-            profile?.email ?? '',
+          const Text(
+            'Email hidden for privacy',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.grey),
+            style: TextStyle(color: AppColors.grey),
           ),
           const SizedBox(height: 18),
           _CodePanel(code: code),
           const SizedBox(height: 18),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/profile/edit'),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit profile'),
+          ),
+          const SizedBox(height: 10),
           _ProfileDetail(
             icon: Icons.notes_outlined,
             label: 'Bio',
@@ -246,8 +264,15 @@ class _ProfileTab extends ConsumerWidget {
             value: subcounty ?? 'Not selected',
           ),
           const SizedBox(height: 14),
-          const _SettingsTile(icon: Icons.security_outlined, label: 'Security'),
-          const _SettingsTile(icon: Icons.lock_outline, label: 'Privacy'),
+          _SettingsTile(
+            icon: Icons.security_outlined,
+            label: 'Security',
+            onTap: () => context.push('/settings/security'),
+          ),
+          const _SettingsTile(
+            icon: Icons.visibility_outlined,
+            label: 'Visibility',
+          ),
           const _SettingsTile(
             icon: Icons.notifications_outlined,
             label: 'Notifications',
@@ -256,10 +281,13 @@ class _ProfileTab extends ConsumerWidget {
             icon: Icons.download_outlined,
             label: 'Export data',
           ),
-          const _SettingsTile(
+          const SizedBox(height: 20),
+          const _DangerZoneHeader(),
+          _SettingsTile(
             icon: Icons.delete_outline,
             label: 'Delete account',
             danger: true,
+            onTap: () => _confirmDeleteAccount(context, ref),
           ),
           _SettingsTile(
             icon: Icons.logout,
@@ -273,6 +301,84 @@ class _ProfileTab extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final user = ref.read(authRepositoryProvider).currentUser;
+    final email = user?.email;
+    if (user == null || email == null) return;
+    final passwordController = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        scrollable: true,
+        title: const Text('Delete account?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your account will be scheduled for deletion with a 30-day recovery period. Confirm your password to continue.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Data export is coming soon')),
+              );
+            },
+            child: const Text('Export data first'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(passwordController.text),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    passwordController.dispose();
+    if (password == null || password.isEmpty) return;
+
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .signIn(email: email, password: password);
+      await ref.read(accountRepositoryProvider).requestAccountDeletion(user.id);
+      await ref.read(authRepositoryProvider).signOut();
+      ref.invalidate(currentProfileProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account deletion requested')),
+        );
+        context.go('/intro');
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete account: $error')),
+        );
+      }
+    }
   }
 
   String? _countyName(int? countyId, List<KenyaCounty> counties) {
@@ -369,6 +475,18 @@ class _CodePanel extends StatelessWidget {
               ],
             ),
           ),
+          IconButton(
+            tooltip: 'Copy CIVIQ code',
+            onPressed: code == 'Pending code'
+                ? null
+                : () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('CIVIQ code copied')),
+                    );
+                  },
+            icon: const Icon(Icons.copy_outlined),
+          ),
         ],
       ),
     );
@@ -439,14 +557,68 @@ class _ProfileError extends ConsumerWidget {
 }
 
 class _DrawerItem extends StatelessWidget {
-  const _DrawerItem({required this.icon, required this.label});
+  const _DrawerItem({required this.icon, required this.label, this.route});
 
   final IconData icon;
   final String label;
+  final String? route;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(leading: Icon(icon), title: Text(label), onTap: () {});
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      onTap: route == null ? null : () => context.push(route!),
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: const BoxDecoration(
+        color: AppColors.dangerRed,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _DangerZoneHeader extends StatelessWidget {
+  const _DangerZoneHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.dangerRed),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.warning_amber_outlined, color: AppColors.dangerRed),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Danger Zone',
+              style: TextStyle(
+                color: AppColors.dangerRed,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

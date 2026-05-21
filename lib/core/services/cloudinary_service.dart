@@ -27,13 +27,13 @@ class CloudinaryService {
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Cloudinary upload failed (${response.statusCode}).');
+      throw Exception('Upload failed! (${response.statusCode}).');
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final secureUrl = body['secure_url'] as String?;
     if (secureUrl == null || secureUrl.isEmpty) {
-      throw Exception('Cloudinary did not return a secure URL.');
+      throw Exception('Did not return a secure URL.');
     }
     return secureUrl;
   }

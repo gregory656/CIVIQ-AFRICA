@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/env.dart';
+import 'core/services/local_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ Future<void> main() async {
       authFlowType: AuthFlowType.pkce,
     ),
   );
+  await LocalNotificationService.instance.initialize();
 
   runApp(const ProviderScope(child: CiviqAfricaApp()));
 }
