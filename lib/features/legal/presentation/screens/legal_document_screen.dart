@@ -43,7 +43,7 @@ class LegalDocumentScreen extends StatelessWidget {
               const SizedBox(height: 18),
             ],
             const Text(
-              'This page is a product baseline and should be reviewed by a qualified Kenyan lawyer before public launch.',
+              'version 1.0.0',
               style: TextStyle(color: AppColors.grey),
             ),
           ],

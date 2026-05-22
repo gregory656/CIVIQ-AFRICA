@@ -26,5 +26,15 @@ class AccountRepository {
       'event_type': 'account_deletion_requested',
       'metadata': {'recovery_days': 30},
     });
+
+    await _client
+        .from('profiles')
+        .update({
+          'deleted_at': now.toIso8601String(),
+          'is_online': false,
+          'last_seen': now.toIso8601String(),
+          'updated_at': now.toIso8601String(),
+        })
+        .eq('id', userId);
   }
 }

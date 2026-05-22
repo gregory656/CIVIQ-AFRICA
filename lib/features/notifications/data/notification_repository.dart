@@ -72,6 +72,17 @@ class NotificationRepository {
     ]);
   }
 
+  Future<void> createSecurityPinResetNotification(String userId) async {
+    await _client.from('notifications').insert({
+      'user_id': userId,
+      'title': 'Security PIN reset',
+      'body':
+          'Your security PIN was reset successfully. If this was not you, secure your account immediately.',
+      'category': 'security',
+      'is_read': false,
+    });
+  }
+
   Future<List<CiviqNotification>> fetchNotifications(String userId) async {
     final response = await _client
         .from('notifications')

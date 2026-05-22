@@ -264,22 +264,31 @@ class _ProfileTab extends ConsumerWidget {
             value: subcounty ?? 'Not selected',
           ),
           const SizedBox(height: 14),
+          Text(
+            'Settings',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
           _SettingsTile(
             icon: Icons.security_outlined,
             label: 'Security',
             onTap: () => context.push('/settings/security'),
           ),
-          const _SettingsTile(
+          _SettingsTile(
             icon: Icons.visibility_outlined,
-            label: 'Visibility',
+            label: 'Privacy & Visibility',
+            onTap: () => context.push('/settings/privacy'),
           ),
-          const _SettingsTile(
+          _SettingsTile(
             icon: Icons.notifications_outlined,
             label: 'Notifications',
+            onTap: () => context.push('/settings/notifications'),
           ),
-          const _SettingsTile(
+          _SettingsTile(
             icon: Icons.download_outlined,
-            label: 'Export data',
+            label: 'Export Data',
+            onTap: () => context.push('/settings/export'),
           ),
           const SizedBox(height: 20),
           const _DangerZoneHeader(),

@@ -3,8 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/terms_screen.dart';
+import '../../features/export/presentation/screens/export_data_screen.dart';
 import '../../features/home/presentation/screens/app_shell.dart';
 import '../../features/legal/presentation/screens/legal_document_screen.dart';
+import '../../features/notifications/presentation/screens/notification_settings_screen.dart';
 import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/onboarding/presentation/screens/avatar_upload_screen.dart';
 import '../../features/onboarding/presentation/screens/civiq_code_screen.dart';
@@ -13,6 +15,7 @@ import '../../features/onboarding/presentation/screens/notification_permission_s
 import '../../features/onboarding/presentation/screens/profile_setup_screen.dart';
 import '../../features/onboarding/presentation/screens/splash_screen.dart';
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/profile/presentation/screens/privacy_visibility_screen.dart';
 import '../../features/profile/presentation/screens/security_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -45,6 +48,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/security',
         builder: (context, state) => const SecurityScreen(),
+      ),
+      GoRoute(
+        path: '/settings/privacy',
+        builder: (context, state) => const PrivacyVisibilityScreen(),
+      ),
+      GoRoute(
+        path: '/settings/notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/export',
+        builder: (context, state) => const ExportDataScreen(),
       ),
       GoRoute(
         path: '/profile/edit',

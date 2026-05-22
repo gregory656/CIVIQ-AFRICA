@@ -121,6 +121,11 @@ create table if not exists public.profiles (
   is_verified boolean not null default false,
   is_public boolean not null default false,
   is_online boolean not null default false,
+  show_online_status boolean not null default true,
+  show_read_receipts boolean not null default true,
+  allow_message_requests boolean not null default true,
+  show_activity boolean not null default false,
+  last_seen timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -130,8 +135,31 @@ create table if not exists public.notifications (
   user_id uuid not null references public.profiles(id) on delete cascade,
   title text not null,
   body text not null,
+  category text not null default 'general',
   is_read boolean not null default false,
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.notification_settings (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  push_enabled boolean not null default true,
+  notification_sound text not null default 'default',
+  messages_enabled boolean not null default true,
+  project_updates_enabled boolean not null default true,
+  moderation_alerts_enabled boolean not null default true,
+  rankings_enabled boolean not null default true,
+  security_alerts_enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.data_export_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  storage_path text,
+  requested_at timestamptz not null default now(),
+  completed_at timestamptz,
+  expires_at timestamptz
 );
 
 create table if not exists public.audit_logs (
@@ -236,6 +264,14 @@ It adds or updates:
 - legal acceptance evidence fields: `ip_address`, `device_id`, `user_agent`
 - `account_deletion_requests`
 - `profiles.deleted_at`
+- `profiles.show_online_status`
+- `profiles.show_read_receipts`
+- `profiles.allow_message_requests`
+- `profiles.show_activity`
+- `profiles.last_seen`
+- `notification_settings`
+- `data_export_requests`
+- `notifications.category`
 - RLS policies for `notifications`, `legal_acceptance_logs`, and `account_deletion_requests`
 - indexes for unread notification count, legal acceptance lookup, and scheduled account purge lookup
 

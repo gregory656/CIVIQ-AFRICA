@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/routes/app_router.dart';
+import 'core/security/app_lock_gate.dart';
 import 'core/theme/app_theme.dart';
 
 class CiviqAfricaApp extends ConsumerWidget {
@@ -16,6 +17,8 @@ class CiviqAfricaApp extends ConsumerWidget {
       title: 'CIVIQ Africa',
       theme: AppTheme.light,
       routerConfig: router,
+      builder: (context, child) =>
+          AppLockGate(child: child ?? const SizedBox()),
     );
   }
 }
