@@ -1,10 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(ref.watch(supabaseClientProvider));
+});
+
+final currentAuthUserIdProvider = StateProvider<String?>((ref) {
+  return ref.watch(supabaseClientProvider).auth.currentUser?.id;
 });
 
 class AuthRepository {
@@ -30,4 +35,10 @@ class AuthRepository {
   }
 
   Future<void> signOut() => _client.auth.signOut();
+
+  Future<void> signOutOtherSessions() =>
+      _client.auth.signOut(scope: SignOutScope.others);
+
+  Future<void> signOutAllSessions() =>
+      _client.auth.signOut(scope: SignOutScope.global);
 }

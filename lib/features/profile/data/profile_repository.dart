@@ -4,13 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../auth/data/auth_repository.dart';
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository(ref.watch(supabaseClientProvider));
 });
 
 final currentProfileProvider = FutureProvider<CiviqProfile?>((ref) async {
-  final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+  final userId = ref.watch(currentAuthUserIdProvider);
   if (userId == null) return null;
   return ref.watch(profileRepositoryProvider).getProfile(userId);
 });

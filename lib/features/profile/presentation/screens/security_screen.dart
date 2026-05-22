@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/security/app_lock_service.dart';
@@ -8,9 +9,11 @@ import '../../../../core/security/pin_service.dart';
 import '../../../../core/security/pin_keypad.dart';
 import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/security/session_service.dart';
+import '../../../../core/widgets/confirmation_popup.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../data/profile_repository.dart';
+import '../../data/security_repository.dart';
 
 class SecurityScreen extends ConsumerStatefulWidget {
   const SecurityScreen({super.key});
@@ -70,8 +73,26 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
               _ChoiceTile(
                 icon: Icons.lock_clock_outlined,
                 title: 'Require unlock after',
-                value: _timeout.label,
+                value: '${_timeout.label} - ${_timeoutHelp(_timeout)}',
                 onTap: _busy ? null : _chooseTimeout,
+              ),
+              _ChoiceTile(
+                icon: Icons.history_outlined,
+                title: 'Security Activity',
+                value: 'Sensitive account events',
+                onTap: () => context.push('/settings/security/activity'),
+              ),
+              _ChoiceTile(
+                icon: Icons.devices_outlined,
+                title: 'Devices',
+                value: 'Trusted and previous devices',
+                onTap: () => context.push('/settings/security/devices'),
+              ),
+              _ChoiceTile(
+                icon: Icons.laptop_mac_outlined,
+                title: 'Active Sessions',
+                value: 'Current and other sessions',
+                onTap: () => context.push('/settings/security/sessions'),
               ),
               const SizedBox(height: 20),
               _SectionTitle('App Lock'),
@@ -168,8 +189,12 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     }
     await ref.read(pinServiceProvider).savePin(first);
     await ref.read(sessionServiceProvider).markLastActive();
+    await ref.read(securityRepositoryProvider).logSecurityEvent('pin_enabled');
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(unreadNotificationCountProvider);
+    ref.invalidate(securityEventsProvider);
     await _load();
-    _snack('App PIN enabled.');
+    _confirmed('PIN enabled');
   }
 
   Future<void> _disablePin() async {
@@ -180,7 +205,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     if (!ok) return;
     await ref.read(pinServiceProvider).clearPin();
     await _load();
-    _snack('App PIN disabled.');
+    _confirmed('PIN disabled');
   }
 
   Future<void> _setBiometrics(bool enabled) async {
@@ -203,8 +228,14 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     await ref
         .read(secureStorageServiceProvider)
         .writeBool('biometric_enabled', true);
+    await ref
+        .read(securityRepositoryProvider)
+        .logSecurityEvent('biometrics_enabled');
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(unreadNotificationCountProvider);
+    ref.invalidate(securityEventsProvider);
     await _load();
-    _snack('Biometrics enabled.');
+    _confirmed('Biometrics enabled');
   }
 
   Future<void> _resetPin() async {
@@ -218,6 +249,9 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       await ref
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
+      await ref
+          .read(securityRepositoryProvider)
+          .logSecurityEvent('password_reauthentication');
       await ref.read(pinServiceProvider).clearPin();
       final newPin = await _requestPin(title: 'Create new CIVIQ PIN');
       if (newPin == null) {
@@ -237,19 +271,28 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         return;
       }
       await ref.read(pinServiceProvider).savePin(newPin);
-      await ref
-          .read(notificationRepositoryProvider)
-          .createSecurityPinResetNotification(user.id);
+      await ref.read(securityRepositoryProvider).logSecurityEvent('pin_reset');
       ref.invalidate(notificationsProvider);
       ref.invalidate(unreadNotificationCountProvider);
+      ref.invalidate(securityEventsProvider);
       await _load();
-      _snack('Security PIN reset successfully.');
+      _confirmed('PIN reset confirmed');
     } catch (error) {
       _snack('Reauthentication failed: $error');
     }
   }
 
   Future<void> _lockNow() => ref.read(appLockServiceProvider).lockNow();
+
+  String _timeoutHelp(SessionTimeoutOption option) {
+    return switch (option) {
+      SessionTimeoutOption.never => 'app will not locally lock',
+      SessionTimeoutOption.immediately => 'locks when backgrounded',
+      SessionTimeoutOption.fiveMinutes ||
+      SessionTimeoutOption.tenMinutes ||
+      SessionTimeoutOption.thirtyMinutes => 'locks after inactivity',
+    };
+  }
 
   Future<String?> _requestPin({required String title}) async {
     return showDialog<String>(
@@ -334,6 +377,10 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _confirmed(String message) async {
+    await showConfirmationPopup(context, message: message);
   }
 
   String _maskEmail(String email) {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../auth/data/auth_repository.dart';
 
 final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
   return NotificationRepository(ref.watch(supabaseClientProvider));
@@ -10,13 +11,21 @@ final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
 final notificationsProvider = FutureProvider<List<CiviqNotification>>((
   ref,
 ) async {
-  final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+  final userId = ref.watch(currentAuthUserIdProvider);
   if (userId == null) return const [];
   return ref.watch(notificationRepositoryProvider).fetchNotifications(userId);
 });
 
+final archivedNotificationsProvider = FutureProvider<List<CiviqNotification>>((
+  ref,
+) async {
+  final userId = ref.watch(currentAuthUserIdProvider);
+  if (userId == null) return const [];
+  return ref.watch(notificationRepositoryProvider).fetchArchived(userId);
+});
+
 final unreadNotificationCountProvider = FutureProvider<int>((ref) async {
-  final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+  final userId = ref.watch(currentAuthUserIdProvider);
   if (userId == null) return 0;
   return ref.watch(notificationRepositoryProvider).fetchUnreadCount(userId);
 });
@@ -28,6 +37,7 @@ class CiviqNotification {
     required this.body,
     required this.isRead,
     required this.createdAt,
+    this.category = 'general',
   });
 
   final String id;
@@ -35,6 +45,7 @@ class CiviqNotification {
   final String body;
   final bool isRead;
   final DateTime createdAt;
+  final String category;
 
   factory CiviqNotification.fromJson(Map<String, dynamic> json) {
     return CiviqNotification(
@@ -42,6 +53,7 @@ class CiviqNotification {
       title: json['title'] as String? ?? '',
       body: json['body'] as String? ?? '',
       isRead: json['is_read'] as bool? ?? false,
+      category: json['category'] as String? ?? 'general',
       createdAt:
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -86,9 +98,25 @@ class NotificationRepository {
   Future<List<CiviqNotification>> fetchNotifications(String userId) async {
     final response = await _client
         .from('notifications')
-        .select('id,title,body,is_read,created_at')
+        .select('id,title,body,is_read,category,created_at')
         .eq('user_id', userId)
+        .filter('archived_at', 'is', null)
+        .filter('deleted_at', 'is', null)
         .order('created_at', ascending: false);
+
+    return response
+        .map((json) => CiviqNotification.fromJson(json))
+        .toList(growable: false);
+  }
+
+  Future<List<CiviqNotification>> fetchArchived(String userId) async {
+    final response = await _client
+        .from('notifications')
+        .select('id,title,body,is_read,category,created_at')
+        .eq('user_id', userId)
+        .filter('archived_at', 'not.is', null)
+        .filter('deleted_at', 'is', null)
+        .order('archived_at', ascending: false);
 
     return response
         .map((json) => CiviqNotification.fromJson(json))
@@ -100,7 +128,9 @@ class NotificationRepository {
         .from('notifications')
         .select('id')
         .eq('user_id', userId)
-        .eq('is_read', false);
+        .eq('is_read', false)
+        .filter('archived_at', 'is', null)
+        .filter('deleted_at', 'is', null);
     return response.length;
   }
 
@@ -109,13 +139,50 @@ class NotificationRepository {
         .from('notifications')
         .update({'is_read': true})
         .eq('user_id', userId)
-        .eq('is_read', false);
+        .eq('is_read', false)
+        .filter('archived_at', 'is', null)
+        .filter('deleted_at', 'is', null);
   }
 
   Future<void> markRead(String notificationId) async {
     await _client
         .from('notifications')
         .update({'is_read': true})
+        .eq('id', notificationId);
+  }
+
+  Future<void> archive(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({'archived_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', notificationId);
+  }
+
+  Future<void> unarchive(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({'archived_at': null})
+        .eq('id', notificationId);
+  }
+
+  Future<void> delete(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({
+          'deleted_at': DateTime.now().toUtc().toIso8601String(),
+          'is_read': true,
+        })
+        .eq('id', notificationId);
+  }
+
+  Future<void> reportSpam(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({
+          'spam_reported_at': DateTime.now().toUtc().toIso8601String(),
+          'archived_at': DateTime.now().toUtc().toIso8601String(),
+          'is_read': true,
+        })
         .eq('id', notificationId);
   }
 }

@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
 
     const { data: requestRow, error: requestError } = await admin
       .from('data_export_requests')
-      .insert({ user_id: userId })
+      .insert({ user_id: userId, status: 'pending' })
       .select('id')
       .single();
     if (requestError) throw requestError;
@@ -106,8 +106,23 @@ Deno.serve(async (req) => {
         storage_path: storagePath,
         completed_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        status: 'completed',
       })
       .eq('id', requestRow.id);
+
+    await admin.from('security_events').insert({
+      user_id: userId,
+      event_type: 'data_export_requested',
+      metadata: { request_id: requestRow.id },
+    });
+
+    await admin.from('notifications').insert({
+      user_id: userId,
+      title: 'Data export requested',
+      body: 'Your CIVIQ Africa data export is ready. The download link expires in 1 hour.',
+      category: 'security',
+      is_read: false,
+    });
 
     return json({ download_url: signed.signedUrl });
   } catch (error) {

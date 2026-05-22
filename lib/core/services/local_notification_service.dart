@@ -9,11 +9,19 @@ class LocalNotificationService {
       FlutterLocalNotificationsPlugin();
 
   static const _androidChannel = AndroidNotificationChannel(
-    'civiq_alerts_v2',
+    'civiq_alerts_default_v1',
     'CIVIQ Alerts',
     description: 'Important CIVIQ Africa account and civic updates.',
     importance: Importance.high,
     playSound: true,
+  );
+
+  static const _silentAndroidChannel = AndroidNotificationChannel(
+    'civiq_alerts_silent_v1',
+    'CIVIQ Alerts Silent',
+    description: 'CIVIQ Africa alerts without sound.',
+    importance: Importance.high,
+    playSound: false,
   );
 
   Future<void> initialize() async {
@@ -45,6 +53,11 @@ class LocalNotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(_androidChannel);
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(_silentAndroidChannel);
   }
 
   Future<void> requestPermission() async {
@@ -59,24 +72,30 @@ class LocalNotificationService {
     required int id,
     required String title,
     required String body,
+    String sound = 'default',
   }) async {
+    final silent = sound == 'silent';
+    final channelId = silent
+        ? 'civiq_alerts_silent_v1'
+        : 'civiq_alerts_default_v1';
+    final channelName = silent ? 'CIVIQ Alerts Silent' : 'CIVIQ Alerts';
     await _plugin.show(
       id: id,
       title: title,
       body: body,
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          'civiq_alerts_v2',
-          'CIVIQ Alerts',
+          channelId,
+          channelName,
           channelDescription:
               'Important CIVIQ Africa account and civic updates.',
           importance: Importance.high,
           priority: Priority.high,
-          playSound: true,
+          playSound: !silent,
           enableVibration: true,
         ),
-        iOS: DarwinNotificationDetails(presentSound: true),
-        macOS: DarwinNotificationDetails(presentSound: true),
+        iOS: DarwinNotificationDetails(presentSound: !silent),
+        macOS: DarwinNotificationDetails(presentSound: !silent),
       ),
     );
   }

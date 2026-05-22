@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../features/profile/data/security_repository.dart';
 import '../../data/export_repository.dart';
 
 class ExportDataScreen extends ConsumerStatefulWidget {
@@ -66,6 +67,37 @@ class _ExportDataScreenState extends ConsumerState<ExportDataScreen> {
                 style: const TextStyle(color: AppColors.primaryGreen),
               ),
             ],
+            const SizedBox(height: 24),
+            Text(
+              'Export History',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Consumer(
+              builder: (context, ref, _) {
+                final history = ref.watch(exportHistoryProvider);
+                return history.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, _) => Text('Could not load history: $error'),
+                  data: (items) {
+                    if (items.isEmpty) {
+                      return const Text(
+                        'No exports requested yet.',
+                        style: TextStyle(color: AppColors.grey),
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (final item in items) _HistoryTile(request: item),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -78,6 +110,7 @@ class _ExportDataScreenState extends ConsumerState<ExportDataScreen> {
       final url = await ref.read(exportRepositoryProvider).requestExport();
       if (!mounted) return;
       setState(() => _downloadUrl = url);
+      ref.invalidate(exportHistoryProvider);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Export archive is ready.')));
@@ -91,4 +124,47 @@ class _ExportDataScreenState extends ConsumerState<ExportDataScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+}
+
+class _HistoryTile extends StatelessWidget {
+  const _HistoryTile({required this.request});
+
+  final DataExportRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ListTile(
+        leading: const Icon(
+          Icons.history_outlined,
+          color: AppColors.primaryGreen,
+        ),
+        title: Text(request.status.toUpperCase()),
+        subtitle: Text(
+          'Requested ${_dateLabel(request.requestedAt)}\n'
+          'Completed ${_optionalDate(request.completedAt)} • '
+          'Expires ${_optionalDate(request.expiresAt)}',
+        ),
+        isThreeLine: true,
+      ),
+    );
+  }
+
+  String _optionalDate(DateTime? value) {
+    if (value == null) return 'pending';
+    return _dateLabel(value);
+  }
+
+  String _dateLabel(DateTime value) {
+    final local = value.toLocal();
+    return '${local.year}-${_two(local.month)}-${_two(local.day)}';
+  }
+
+  String _two(int value) => value.toString().padLeft(2, '0');
 }

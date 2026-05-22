@@ -14,8 +14,13 @@ import '../../features/onboarding/presentation/screens/intro_screen.dart';
 import '../../features/onboarding/presentation/screens/notification_permission_screen.dart';
 import '../../features/onboarding/presentation/screens/profile_setup_screen.dart';
 import '../../features/onboarding/presentation/screens/splash_screen.dart';
+import '../../features/profile/presentation/screens/account_status_screen.dart';
+import '../../features/profile/presentation/screens/active_sessions_screen.dart';
+import '../../features/profile/presentation/screens/devices_screen.dart';
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/profile/presentation/screens/legal_history_screen.dart';
 import '../../features/profile/presentation/screens/privacy_visibility_screen.dart';
+import '../../features/profile/presentation/screens/security_activity_screen.dart';
 import '../../features/profile/presentation/screens/security_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -50,6 +55,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SecurityScreen(),
       ),
       GoRoute(
+        path: '/settings/security/activity',
+        builder: (context, state) => const SecurityActivityScreen(),
+      ),
+      GoRoute(
+        path: '/settings/security/devices',
+        builder: (context, state) => const DevicesScreen(),
+      ),
+      GoRoute(
+        path: '/settings/security/sessions',
+        builder: (context, state) => const ActiveSessionsScreen(),
+      ),
+      GoRoute(
         path: '/settings/privacy',
         builder: (context, state) => const PrivacyVisibilityScreen(),
       ),
@@ -60,6 +77,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/export',
         builder: (context, state) => const ExportDataScreen(),
+      ),
+      GoRoute(
+        path: '/settings/account-status',
+        builder: (context, state) => const AccountStatusScreen(),
+      ),
+      GoRoute(
+        path: '/settings/legal-history',
+        builder: (context, state) => const LegalHistoryScreen(),
       ),
       GoRoute(
         path: '/profile/edit',

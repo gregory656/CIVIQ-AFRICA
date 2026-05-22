@@ -61,16 +61,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       final auth = ref.read(authRepositoryProvider);
       if (_isLogin) {
-        await auth.signIn(
+        final response = await auth.signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+        ref.read(currentAuthUserIdProvider.notifier).state = response.user?.id;
       } else {
         final response = await auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
         final userId = response.user?.id ?? auth.currentUser?.id;
+        ref.read(currentAuthUserIdProvider.notifier).state = userId;
         if (userId != null) {
           await ref
               .read(legalRepositoryProvider)

@@ -1,6 +1,6 @@
 # Suggested Features And Supabase Playbook
 
-This document lists strong next features for CIVIQ Africa after Phase 1.5, plus the Supabase migration/function workflow you should understand before running database commands yourself.
+This document lists strong next features for CIVIQ Africa after Phase 1.5, plus the database migration/function workflow .
 
 ## Product Direction
 
@@ -26,7 +26,7 @@ Avoid rushing into:
 - Social discovery
 - Large chat systems
 
-Those features will create moderation, privacy, notification, and trust pressure. The current layer should become boring and reliable first.
+These features will create moderation, privacy, notification, and trust pressure. The current layer should become boring and reliable first.
 
 ## Missing Or Recommended Phase 1 Features
 
@@ -38,10 +38,10 @@ Add a screen under:
 Profile -> Security -> Security Activity
 ```
 
-Show user-visible security events:
+Show user-visible security events:(Create a supabase function that will trigger each event below and sent a ping notification to the notification bell icon immediately when the folllowing actions has been made and document it)
 
-- PIN enabled
-- PIN reset
+- PIN enabled(Eg.. Hello {username},you have enabled pin....etc)
+- PIN reset{Eg.. hello good({username})your password was reset}
 - Biometrics enabled
 - Account deletion requested
 - Password reauthentication
@@ -52,7 +52,7 @@ Why it matters:
 
 Users trust apps more when sensitive events are visible.
 
-### 2. Trusted Devices
+### 2. Trusted Devices add this feature under profile,security,devices
 
 Add a `trusted_devices` table later.
 
@@ -74,11 +74,10 @@ Profile -> Security -> Devices
 
 Actions:
 
-- View current device
+- View current device then list the current device
 - View previous devices
-- Revoke a device
+- Revoke a device(allow users to logout the selected devices)
 
-Do not overbuild fingerprinting yet. Start with simple device records.
 
 ### 3. Session Management Screen
 
@@ -104,7 +103,7 @@ This should come before serious chat/social features.
 
 ### 4. Security Notification Preference Rules
 
-Security alerts are correctly always on. Later, define exactly which events trigger security alerts:
+Security alerts are correctly always on.Help me define exactly which events trigger security alerts:(this events will automatically be sent to the notification icon use supabse functions he deploy then document it)
 
 - PIN reset
 - Account deletion request
@@ -118,7 +117,7 @@ These should also be stored in `notifications`.
 
 ### 5. Export Request History
 
-The export system currently returns a signed link. Later add:
+The export system currently returns a signed link:
 
 ```text
 Profile -> Export Data -> Export History
@@ -186,7 +185,7 @@ Useful for compliance and user transparency.
 
 ### 9. App Lock Grace Period Copy
 
-The app has session timeout options. Later, add tiny helper text explaining what each means:
+The app has session timeout options.Add tiny helper text explaining what each means:
 
 - Never: app will not locally lock
 - Immediately: lock whenever app is backgrounded
@@ -281,7 +280,7 @@ Each bucket should have clear policies for:
 
 You already rate-limit exports to one per 24 hours.
 
-Add future rate limits for:
+Add Rate limits for:
 
 - PIN reset attempts
 - Account deletion requests
@@ -804,4 +803,6 @@ docs/release_checklist.md
 ```
 
 For pre-launch checks before every production release.
+
+Lastly one request let That danger zone be a button which when clicked then so it displays the two danger zones,logout and delete account
 

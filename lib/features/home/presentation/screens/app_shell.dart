@@ -11,6 +11,7 @@ import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
+import '../../../../features/profile/data/security_repository.dart';
 import '../../../../shared/models/kenya_location.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -290,25 +291,64 @@ class _ProfileTab extends ConsumerWidget {
             label: 'Export Data',
             onTap: () => context.push('/settings/export'),
           ),
+          _SettingsTile(
+            icon: Icons.manage_accounts_outlined,
+            label: 'Account Status',
+            onTap: () => context.push('/settings/account-status'),
+          ),
+          _SettingsTile(
+            icon: Icons.gavel_outlined,
+            label: 'Legal History',
+            onTap: () => context.push('/settings/legal-history'),
+          ),
           const SizedBox(height: 20),
-          const _DangerZoneHeader(),
+          const _DangerZoneActions(),
+        ],
+      ),
+    );
+  }
+}
+
+class _DangerZoneActions extends ConsumerStatefulWidget {
+  const _DangerZoneActions();
+
+  @override
+  ConsumerState<_DangerZoneActions> createState() => _DangerZoneActionsState();
+}
+
+class _DangerZoneActionsState extends ConsumerState<_DangerZoneActions> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _open = !_open),
+          icon: const Icon(Icons.warning_amber_outlined),
+          label: const Text('Danger Zone'),
+          style: OutlinedButton.styleFrom(foregroundColor: AppColors.dangerRed),
+        ),
+        if (_open) ...[
+          const SizedBox(height: 8),
+          _SettingsTile(
+            icon: Icons.logout,
+            label: 'Logout',
+            onTap: () async {
+              ref.read(currentAuthUserIdProvider.notifier).state = null;
+              await ref.read(authRepositoryProvider).signOut();
+              _clearUserScopedProviders(ref);
+              if (context.mounted) context.go('/intro');
+            },
+          ),
           _SettingsTile(
             icon: Icons.delete_outline,
             label: 'Delete account',
             danger: true,
             onTap: () => _confirmDeleteAccount(context, ref),
           ),
-          _SettingsTile(
-            icon: Icons.logout,
-            label: 'Logout',
-            onTap: () async {
-              await ref.read(authRepositoryProvider).signOut();
-              ref.invalidate(currentProfileProvider);
-              if (context.mounted) context.go('/intro');
-            },
-          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -372,9 +412,17 @@ class _ProfileTab extends ConsumerWidget {
       await ref
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
+      if (!mounted) return;
       await ref.read(accountRepositoryProvider).requestAccountDeletion(user.id);
+      if (!mounted) return;
+      await ref
+          .read(securityRepositoryProvider)
+          .logSecurityEvent('account_deletion_requested');
+      if (!mounted) return;
+      _clearUserScopedProviders(ref);
+      ref.read(currentAuthUserIdProvider.notifier).state = null;
       await ref.read(authRepositoryProvider).signOut();
-      ref.invalidate(currentProfileProvider);
+      if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Account deletion requested')),
@@ -390,28 +438,40 @@ class _ProfileTab extends ConsumerWidget {
     }
   }
 
-  String? _countyName(int? countyId, List<KenyaCounty> counties) {
-    if (countyId == null) return null;
-    for (final county in counties) {
-      if (county.id == countyId) return county.name;
-    }
-    return null;
+  void _clearUserScopedProviders(WidgetRef ref) {
+    ref.invalidate(currentProfileProvider);
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(archivedNotificationsProvider);
+    ref.invalidate(unreadNotificationCountProvider);
+    ref.invalidate(securityEventsProvider);
+    ref.invalidate(trustedDevicesProvider);
+    ref.invalidate(exportHistoryProvider);
+    ref.invalidate(accountDeletionProvider);
+    ref.invalidate(legalHistoryProvider);
   }
+}
 
-  String? _subcountyName(
-    int? countyId,
-    int? subcountyId,
-    List<KenyaCounty> counties,
-  ) {
-    if (countyId == null || subcountyId == null) return null;
-    for (final county in counties) {
-      if (county.id != countyId) continue;
-      for (final subcounty in county.subcounties) {
-        if (subcounty.id == subcountyId) return subcounty.name;
-      }
-    }
-    return null;
+String? _countyName(int? countyId, List<KenyaCounty> counties) {
+  if (countyId == null) return null;
+  for (final county in counties) {
+    if (county.id == countyId) return county.name;
   }
+  return null;
+}
+
+String? _subcountyName(
+  int? countyId,
+  int? subcountyId,
+  List<KenyaCounty> counties,
+) {
+  if (countyId == null || subcountyId == null) return null;
+  for (final county in counties) {
+    if (county.id != countyId) continue;
+    for (final subcounty in county.subcounties) {
+      if (subcounty.id == subcountyId) return subcounty.name;
+    }
+  }
+  return null;
 }
 
 class _ProfileAvatar extends StatelessWidget {
@@ -595,37 +655,6 @@ class _UnreadBadge extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.dangerRed,
         shape: BoxShape.circle,
-      ),
-    );
-  }
-}
-
-class _DangerZoneHeader extends StatelessWidget {
-  const _DangerZoneHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.dangerRed),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.warning_amber_outlined, color: AppColors.dangerRed),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Danger Zone',
-              style: TextStyle(
-                color: AppColors.dangerRed,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -39,6 +39,12 @@ class _PrivacyVisibilityScreenState
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showPreview(context, profile),
+                  icon: const Icon(Icons.preview_outlined),
+                  label: const Text('Preview public profile'),
+                ),
+                const SizedBox(height: 12),
                 _SwitchTile(
                   icon: Icons.public_outlined,
                   title: 'Public Profile',
@@ -79,6 +85,51 @@ class _PrivacyVisibilityScreenState
             );
           },
         ),
+      ),
+    );
+  }
+
+  Future<void> _showPreview(BuildContext context, CiviqProfile profile) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Public profile preview'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              profile.isPublic
+                  ? '@${profile.username ?? 'member'}'
+                  : 'Hidden profile',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              profile.isPublic
+                  ? profile.bio ?? 'No public bio.'
+                  : 'Profile is not discoverable.',
+            ),
+            const SizedBox(height: 12),
+            _PreviewLine(
+              label: 'Activity',
+              value: profile.showActivity ? 'Visible' : 'Hidden',
+            ),
+            _PreviewLine(
+              label: 'Online status',
+              value: profile.showOnlineStatus ? 'Visible' : 'Hidden',
+            ),
+            _PreviewLine(
+              label: 'Username search',
+              value: profile.isPublic ? 'Discoverable' : 'Hidden',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -130,6 +181,28 @@ class _PrivacyVisibilityScreenState
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+class _PreviewLine extends StatelessWidget {
+  const _PreviewLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label, style: const TextStyle(color: AppColors.grey)),
+          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
   }
 }
 

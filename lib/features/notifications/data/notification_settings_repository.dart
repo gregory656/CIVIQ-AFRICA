@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../auth/data/auth_repository.dart';
 
 final notificationSettingsRepositoryProvider =
     Provider<NotificationSettingsRepository>((ref) {
@@ -11,7 +12,7 @@ final notificationSettingsRepositoryProvider =
 final notificationSettingsProvider = FutureProvider<NotificationSettings>((
   ref,
 ) async {
-  final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+  final userId = ref.watch(currentAuthUserIdProvider);
   if (userId == null) return const NotificationSettings();
   return ref.watch(notificationSettingsRepositoryProvider).getOrCreate(userId);
 });

@@ -21,12 +21,6 @@ class AccountRepository {
       'cancelled_at': null,
     }, onConflict: 'user_id');
 
-    await _client.from('security_events').insert({
-      'user_id': userId,
-      'event_type': 'account_deletion_requested',
-      'metadata': {'recovery_days': 30},
-    });
-
     await _client
         .from('profiles')
         .update({
