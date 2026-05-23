@@ -9,6 +9,7 @@ import '../../../../core/widgets/brand_mark.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
+import '../../../../features/chats/presentation/screens/chats_screen.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
@@ -39,103 +40,115 @@ class _AppShellState extends ConsumerState<AppShell> {
     final tab = _tabs[_index];
 
     return Scaffold(
-      drawer: Drawer(
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: BrandMark(size: 38),
-              ),
-              const Divider(),
-              const _DrawerItem(icon: Icons.help_outline, label: 'FAQ'),
-              _DrawerItem(
-                icon: Icons.groups_outlined,
-                label: 'Community Guidelines',
-                route: '/legal/community-guidelines',
-              ),
-              _DrawerItem(
-                icon: Icons.gavel_outlined,
-                label: 'Terms',
-                route: '/legal/terms',
-              ),
-              const _DrawerItem(
-                icon: Icons.assignment_return_outlined,
-                label: 'Appeals',
-              ),
-              _DrawerItem(
-                icon: Icons.privacy_tip_outlined,
-                label: 'Privacy Policy',
-                route: '/legal/privacy-policy',
-              ),
-              const _DrawerItem(icon: Icons.info_outline, label: 'About'),
-              const _DrawerItem(icon: Icons.mail_outline, label: 'Contact'),
-            ],
-          ),
-        ),
-      ),
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: const BrandMark(size: 34),
-        actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                tooltip: 'Notifications',
-                onPressed: () => context.push('/notifications'),
-                icon: const Icon(Icons.notifications_outlined),
-              ),
-              Consumer(
-                builder: (context, ref, _) {
-                  final unread = ref.watch(unreadNotificationCountProvider);
-                  return unread.maybeWhen(
-                    data: (count) => count > 0
-                        ? Positioned(
-                            top: 11,
-                            right: 10,
-                            child: _UnreadBadge(count: count),
-                          )
-                        : const SizedBox.shrink(),
-                    orElse: () => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ],
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'More',
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'refresh', child: Text('Refresh')),
-              PopupMenuItem(value: 'report', child: Text('Report issue')),
-              PopupMenuItem(value: 'share', child: Text('Share')),
-              PopupMenuItem(value: 'sort', child: Text('Sort')),
-              PopupMenuItem(value: 'filter', child: Text('Filter')),
-            ],
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(58),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search anything...',
-                prefixIcon: const Icon(Icons.search),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                filled: true,
-                fillColor: AppColors.background,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+      drawer: _index == 3
+          ? null
+          : Drawer(
+              child: SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: BrandMark(size: 38),
+                    ),
+                    const Divider(),
+                    const _DrawerItem(icon: Icons.help_outline, label: 'FAQ'),
+                    _DrawerItem(
+                      icon: Icons.groups_outlined,
+                      label: 'Community Guidelines',
+                      route: '/legal/community-guidelines',
+                    ),
+                    _DrawerItem(
+                      icon: Icons.gavel_outlined,
+                      label: 'Terms',
+                      route: '/legal/terms',
+                    ),
+                    const _DrawerItem(
+                      icon: Icons.assignment_return_outlined,
+                      label: 'Appeals',
+                    ),
+                    _DrawerItem(
+                      icon: Icons.privacy_tip_outlined,
+                      label: 'Privacy Policy',
+                      route: '/legal/privacy-policy',
+                    ),
+                    const _DrawerItem(icon: Icons.info_outline, label: 'About'),
+                    const _DrawerItem(
+                      icon: Icons.mail_outline,
+                      label: 'Contact',
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ),
-      ),
+      appBar: _index == 3
+          ? null
+          : AppBar(
+              titleSpacing: 0,
+              title: const BrandMark(size: 34),
+              actions: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Notifications',
+                      onPressed: () => context.push('/notifications'),
+                      icon: const Icon(Icons.notifications_outlined),
+                    ),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final unread = ref.watch(
+                          unreadNotificationCountProvider,
+                        );
+                        return unread.maybeWhen(
+                          data: (count) => count > 0
+                              ? Positioned(
+                                  top: 11,
+                                  right: 10,
+                                  child: _UnreadBadge(count: count),
+                                )
+                              : const SizedBox.shrink(),
+                          orElse: () => const SizedBox.shrink(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'More',
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'refresh', child: Text('Refresh')),
+                    PopupMenuItem(value: 'report', child: Text('Report issue')),
+                    PopupMenuItem(value: 'share', child: Text('Share')),
+                    PopupMenuItem(value: 'sort', child: Text('Sort')),
+                    PopupMenuItem(value: 'filter', child: Text('Filter')),
+                  ],
+                ),
+              ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(58),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search anything...',
+                      prefixIcon: const Icon(Icons.search),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      filled: true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
       body: _ShellBody(tab: tab, index: _index),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
@@ -174,6 +187,10 @@ class _ShellBody extends ConsumerWidget {
           data: (counties) => _ProfileTab(profile: profile, counties: counties),
         ),
       );
+    }
+
+    if (index == 3) {
+      return const ChatsScreen();
     }
 
     return Center(

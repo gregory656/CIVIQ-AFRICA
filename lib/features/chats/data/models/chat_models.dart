@@ -1,0 +1,202 @@
+enum ConversationType {
+  direct,
+  group,
+  self;
+
+  static ConversationType fromValue(String? value) {
+    return ConversationType.values.firstWhere(
+      (type) => type.name == value,
+      orElse: () => ConversationType.direct,
+    );
+  }
+}
+
+enum MessageDeliveryState { sent, delivered, read }
+
+class ChatConversation {
+  const ChatConversation({
+    required this.id,
+    required this.type,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.isMuted,
+    required this.isArchived,
+    required this.isFavorite,
+    required this.unreadCount,
+    this.title,
+    this.lastMessageId,
+    this.lastMessageContent,
+    this.lastMessageSenderId,
+    this.lastMessageCreatedAt,
+    this.peerId,
+    this.peerUsername,
+    this.peerAvatarUrl,
+    this.peerIsVerified = false,
+    this.peerRoleLabel,
+  });
+
+  final String id;
+  final ConversationType type;
+  final String? title;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isMuted;
+  final bool isArchived;
+  final bool isFavorite;
+  final int unreadCount;
+  final String? lastMessageId;
+  final String? lastMessageContent;
+  final String? lastMessageSenderId;
+  final DateTime? lastMessageCreatedAt;
+  final String? peerId;
+  final String? peerUsername;
+  final String? peerAvatarUrl;
+  final bool peerIsVerified;
+  final String? peerRoleLabel;
+
+  String displayTitle(String? currentUsername) {
+    if (type == ConversationType.self) return 'Saved Messages';
+    if (type == ConversationType.group) {
+      return title?.isNotEmpty == true ? title! : 'Group chat';
+    }
+    final username = peerUsername;
+    return username?.isNotEmpty == true ? '@$username' : 'CIVIQ Member';
+  }
+
+  String displaySubtitle(String? currentUsername) {
+    if (type == ConversationType.self) {
+      final username = currentUsername;
+      return username?.isNotEmpty == true ? '@$username (You)' : 'You';
+    }
+    return lastMessageContent?.isNotEmpty == true
+        ? lastMessageContent!
+        : 'No messages yet';
+  }
+
+  factory ChatConversation.fromJson(Map<String, dynamic> json) {
+    return ChatConversation(
+      id: json['id'] as String,
+      type: ConversationType.fromValue(json['conversation_type'] as String?),
+      title: json['title'] as String?,
+      createdAt: _date(json['created_at']),
+      updatedAt: _date(json['updated_at']),
+      isMuted: json['is_muted'] as bool? ?? false,
+      isArchived: json['is_archived'] as bool? ?? false,
+      isFavorite: json['is_favorite'] as bool? ?? false,
+      unreadCount: (json['unread_count'] as num?)?.toInt() ?? 0,
+      lastMessageId: json['last_message_id'] as String?,
+      lastMessageContent: json['last_message_content'] as String?,
+      lastMessageSenderId: json['last_message_sender_id'] as String?,
+      lastMessageCreatedAt: json['last_message_created_at'] == null
+          ? null
+          : _date(json['last_message_created_at']),
+      peerId: json['peer_id'] as String?,
+      peerUsername: json['peer_username'] as String?,
+      peerAvatarUrl: json['peer_avatar_url'] as String?,
+      peerIsVerified: json['peer_is_verified'] as bool? ?? false,
+      peerRoleLabel: json['peer_role_label'] as String?,
+    );
+  }
+}
+
+class ChatMessage {
+  const ChatMessage({
+    required this.id,
+    required this.conversationId,
+    required this.senderId,
+    required this.messageType,
+    required this.createdAt,
+    required this.isEdited,
+    required this.isFavorite,
+    required this.deliveredCount,
+    required this.readCount,
+    this.content,
+    this.mediaUrl,
+    this.replyToMessageId,
+    this.deletedAt,
+    this.senderUsername,
+    this.senderAvatarUrl,
+  });
+
+  final String id;
+  final String conversationId;
+  final String? senderId;
+  final String messageType;
+  final String? content;
+  final String? mediaUrl;
+  final String? replyToMessageId;
+  final bool isEdited;
+  final DateTime createdAt;
+  final DateTime? deletedAt;
+  final String? senderUsername;
+  final String? senderAvatarUrl;
+  final bool isFavorite;
+  final int deliveredCount;
+  final int readCount;
+
+  MessageDeliveryState deliveryStateFor(String? currentUserId) {
+    if (senderId != currentUserId) return MessageDeliveryState.read;
+    if (readCount > 0) return MessageDeliveryState.read;
+    if (deliveredCount > 0) return MessageDeliveryState.delivered;
+    return MessageDeliveryState.sent;
+  }
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] as String,
+      conversationId: json['conversation_id'] as String,
+      senderId: json['sender_id'] as String?,
+      messageType: json['message_type'] as String? ?? 'text',
+      content: json['content'] as String?,
+      mediaUrl: json['media_url'] as String?,
+      replyToMessageId: json['reply_to_message_id'] as String?,
+      isEdited: json['is_edited'] as bool? ?? false,
+      createdAt: _date(json['created_at']),
+      deletedAt: json['deleted_at'] == null ? null : _date(json['deleted_at']),
+      senderUsername: json['sender_username'] as String?,
+      senderAvatarUrl: json['sender_avatar_url'] as String?,
+      isFavorite: json['is_favorite'] as bool? ?? false,
+      deliveredCount: (json['delivered_count'] as num?)?.toInt() ?? 0,
+      readCount: (json['read_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class ChatProfileResult {
+  const ChatProfileResult({
+    required this.id,
+    required this.isVerified,
+    this.username,
+    this.civiqCode,
+    this.avatarUrl,
+    this.roleLabel,
+  });
+
+  final String id;
+  final String? username;
+  final String? civiqCode;
+  final String? avatarUrl;
+  final bool isVerified;
+  final String? roleLabel;
+
+  String get displayName {
+    final value = username;
+    return value?.isNotEmpty == true ? '@$value' : 'CIVIQ Member';
+  }
+
+  factory ChatProfileResult.fromJson(Map<String, dynamic> json) {
+    return ChatProfileResult(
+      id: json['id'] as String,
+      username: json['username'] as String?,
+      civiqCode: json['civiq_code'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
+      isVerified: json['is_verified'] as bool? ?? false,
+      roleLabel: json['role_label'] as String?,
+    );
+  }
+}
+
+DateTime _date(Object? value) {
+  return DateTime.tryParse(value as String? ?? '') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}

@@ -94,7 +94,7 @@ class _AvatarUploadScreenState extends ConsumerState<AvatarUploadScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'The app stores only the URL...',
+                'You can always change this later in settings',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.grey),
               ),

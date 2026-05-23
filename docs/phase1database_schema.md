@@ -2,7 +2,7 @@
 
 Phase 1 should stay architecturally strict. It is not just authentication, and it should not mix security rules, onboarding steps, and legal compliance into the same feature bucket.
 
-Use this separation:
+Separation used:
 
 | Category | Owns | Does not own |
 | --- | --- | --- |

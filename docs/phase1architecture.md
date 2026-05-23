@@ -1,12 +1,12 @@
 # CIVIQ Africa Phase 1 Architecture
 
-The mobile app uses Flutter with a feature-first structure.
+The mobile app uses Flutter
 
 ## Phase 1 Boundary
 
-Treat Phase 1 as identity, security, compliance, and recovery infrastructure. Do not let these concerns collapse into one "auth" feature.
+Phase 1 Identity, Security, compliance, and recovery infrastructure. 
 
-Keep the boundaries strict:
+Strict Boundaries:
 
 - Onboarding logic owns first-run screens, profile setup, terms checkbox state, CIVIQ code display, and notification prompt.
 - Security logic owns authentication, sessions, device trust, app lock, PIN reset, audit/security events, account recovery, and destructive account actions.
