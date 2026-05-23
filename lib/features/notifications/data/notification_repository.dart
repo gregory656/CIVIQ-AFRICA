@@ -38,6 +38,9 @@ class CiviqNotification {
     required this.isRead,
     required this.createdAt,
     this.category = 'general',
+    this.actionRoute,
+    this.actionLabel,
+    this.actorProfileId,
   });
 
   final String id;
@@ -46,6 +49,9 @@ class CiviqNotification {
   final bool isRead;
   final DateTime createdAt;
   final String category;
+  final String? actionRoute;
+  final String? actionLabel;
+  final String? actorProfileId;
 
   factory CiviqNotification.fromJson(Map<String, dynamic> json) {
     return CiviqNotification(
@@ -54,6 +60,9 @@ class CiviqNotification {
       body: json['body'] as String? ?? '',
       isRead: json['is_read'] as bool? ?? false,
       category: json['category'] as String? ?? 'general',
+      actionRoute: json['action_route'] as String?,
+      actionLabel: json['action_label'] as String?,
+      actorProfileId: json['actor_profile_id'] as String?,
       createdAt:
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -98,7 +107,9 @@ class NotificationRepository {
   Future<List<CiviqNotification>> fetchNotifications(String userId) async {
     final response = await _client
         .from('notifications')
-        .select('id,title,body,is_read,category,created_at')
+        .select(
+          'id,title,body,is_read,category,action_route,action_label,actor_profile_id,created_at',
+        )
         .eq('user_id', userId)
         .filter('archived_at', 'is', null)
         .filter('deleted_at', 'is', null)
@@ -112,7 +123,9 @@ class NotificationRepository {
   Future<List<CiviqNotification>> fetchArchived(String userId) async {
     final response = await _client
         .from('notifications')
-        .select('id,title,body,is_read,category,created_at')
+        .select(
+          'id,title,body,is_read,category,action_route,action_label,actor_profile_id,created_at',
+        )
         .eq('user_id', userId)
         .filter('archived_at', 'not.is', null)
         .filter('deleted_at', 'is', null)

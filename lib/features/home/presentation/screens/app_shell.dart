@@ -6,12 +6,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/brand_mark.dart';
+import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../features/profile/data/security_repository.dart';
+import '../../../../features/profile/presentation/screens/social_list_screen.dart';
 import '../../../../shared/models/kenya_location.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -224,15 +226,27 @@ class _ProfileTab extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         children: [
           Center(child: _ProfileAvatar(url: profile?.avatarUrl)),
-          const SizedBox(height: 16),
-          Text(
-            displayName,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          const SizedBox(height: 12),
+          Center(
+            child: _VerifiedName(
+              displayName: displayName,
+              isVerified: profile?.isVerified ?? false,
+            ),
           ),
-          const SizedBox(height: 4),
+          if (profile?.roleLabel?.isNotEmpty == true) ...[
+            const SizedBox(height: 3),
+            Text(
+              profile!.roleLabel!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.grey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          _SocialStatsRow(profile: profile),
+          const SizedBox(height: 10),
           const Text(
             'Email hidden for privacy',
             textAlign: TextAlign.center,
@@ -304,6 +318,118 @@ class _ProfileTab extends ConsumerWidget {
           const SizedBox(height: 20),
           const _DangerZoneActions(),
         ],
+      ),
+    );
+  }
+}
+
+class _VerifiedName extends StatelessWidget {
+  const _VerifiedName({required this.displayName, required this.isVerified});
+
+  final String displayName;
+  final bool isVerified;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            displayName,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
+        if (isVerified) ...[
+          const SizedBox(width: 5),
+          const CiviqVerifiedBadge(size: 17),
+        ],
+      ],
+    );
+  }
+}
+
+class _SocialStatsRow extends StatelessWidget {
+  const _SocialStatsRow({required this.profile});
+
+  final CiviqProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = profile?.id;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _SocialStatButton(
+          label: 'Following',
+          count: profile?.followingCount ?? 0,
+          onTap: id == null
+              ? null
+              : () => _openSocialList(context, id, SocialListType.following),
+        ),
+        Container(
+          width: 1,
+          height: 24,
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          color: AppColors.border,
+        ),
+        _SocialStatButton(
+          label: 'Followers',
+          count: profile?.followersCount ?? 0,
+          onTap: id == null
+              ? null
+              : () => _openSocialList(context, id, SocialListType.followers),
+        ),
+      ],
+    );
+  }
+
+  void _openSocialList(
+    BuildContext context,
+    String profileId,
+    SocialListType type,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SocialListScreen(profileId: profileId, type: type),
+      ),
+    );
+  }
+}
+
+class _SocialStatButton extends StatelessWidget {
+  const _SocialStatButton({
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              count.toString(),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: AppColors.grey)),
+          ],
+        ),
       ),
     );
   }

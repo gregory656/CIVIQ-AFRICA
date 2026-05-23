@@ -86,6 +86,8 @@ Legal compliance owns the policy text and proof of acceptance. It should not be 
 - `appeals`
 - `moderation_actions`
 - `blocked_users`
+- `follows`
+- `verification_requests`
 
 ### Configuration Tables
 
@@ -119,6 +121,10 @@ create table if not exists public.profiles (
   county_id int references public.counties(id),
   subcounty_id int references public.subcounties(id),
   is_verified boolean not null default false,
+  verified_at timestamptz,
+  verified_by uuid references auth.users(id),
+  verification_type text,
+  role_label text,
   is_public boolean not null default false,
   is_online boolean not null default false,
   show_online_status boolean not null default true,
@@ -137,6 +143,9 @@ create table if not exists public.notifications (
   body text not null,
   category text not null default 'general',
   is_read boolean not null default false,
+  action_route text,
+  action_label text,
+  actor_profile_id uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -202,6 +211,25 @@ create table if not exists public.blocked_users (
   blocked_id uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (blocker_id, blocked_id)
+);
+
+create table if not exists public.follows (
+  follower_id uuid not null references public.profiles(id) on delete cascade,
+  following_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (follower_id, following_id),
+  constraint follows_no_self_follow check (follower_id <> following_id)
+);
+
+create table if not exists public.verification_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  requested_role text,
+  proof_document_url text,
+  status text not null default 'pending',
+  reviewed_by uuid references auth.users(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.app_settings (

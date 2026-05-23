@@ -16,6 +16,24 @@ final currentProfileProvider = FutureProvider<CiviqProfile?>((ref) async {
   return ref.watch(profileRepositoryProvider).getProfile(userId);
 });
 
+final publicProfileProvider = FutureProvider.family<CiviqProfile?, String>((
+  ref,
+  userId,
+) async {
+  return ref.watch(profileRepositoryProvider).getProfile(userId);
+});
+
+final isFollowingProvider = FutureProvider.family<bool, String>((
+  ref,
+  targetUserId,
+) async {
+  final currentUserId = ref.watch(currentAuthUserIdProvider);
+  if (currentUserId == null || currentUserId == targetUserId) return false;
+  return ref
+      .watch(profileRepositoryProvider)
+      .isFollowing(currentUserId, targetUserId);
+});
+
 class CiviqProfile {
   const CiviqProfile({
     required this.id,
@@ -31,6 +49,11 @@ class CiviqProfile {
     this.showReadReceipts = true,
     this.allowMessageRequests = true,
     this.showActivity = false,
+    this.isVerified = false,
+    this.verificationType,
+    this.roleLabel,
+    this.followersCount = 0,
+    this.followingCount = 0,
   });
 
   final String id;
@@ -46,6 +69,11 @@ class CiviqProfile {
   final bool showReadReceipts;
   final bool allowMessageRequests;
   final bool showActivity;
+  final bool isVerified;
+  final String? verificationType;
+  final String? roleLabel;
+  final int followersCount;
+  final int followingCount;
 
   factory CiviqProfile.fromJson(Map<String, dynamic> json) {
     return CiviqProfile(
@@ -62,6 +90,55 @@ class CiviqProfile {
       showReadReceipts: json['show_read_receipts'] as bool? ?? true,
       allowMessageRequests: json['allow_message_requests'] as bool? ?? true,
       showActivity: json['show_activity'] as bool? ?? false,
+      isVerified: json['is_verified'] as bool? ?? false,
+      verificationType: json['verification_type'] as String?,
+      roleLabel: json['role_label'] as String?,
+      followersCount: json['followers_count'] as int? ?? 0,
+      followingCount: json['following_count'] as int? ?? 0,
+    );
+  }
+}
+
+class ProfileConnection {
+  const ProfileConnection({
+    required this.id,
+    required this.username,
+    required this.civiqCode,
+    required this.avatarUrl,
+    required this.isVerified,
+    required this.roleLabel,
+    this.isFollowed = false,
+  });
+
+  final String id;
+  final String? username;
+  final String? civiqCode;
+  final String? avatarUrl;
+  final bool isVerified;
+  final String? roleLabel;
+  final bool isFollowed;
+
+  factory ProfileConnection.fromJson(Map<String, dynamic> json) {
+    return ProfileConnection(
+      id: json['id'] as String,
+      username: json['username'] as String?,
+      civiqCode: json['civiq_code'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
+      isVerified: json['is_verified'] as bool? ?? false,
+      roleLabel: json['role_label'] as String?,
+      isFollowed: json['is_followed'] as bool? ?? false,
+    );
+  }
+
+  ProfileConnection copyWith({bool? isFollowed}) {
+    return ProfileConnection(
+      id: id,
+      username: username,
+      civiqCode: civiqCode,
+      avatarUrl: avatarUrl,
+      isVerified: isVerified,
+      roleLabel: roleLabel,
+      isFollowed: isFollowed ?? this.isFollowed,
     );
   }
 }
@@ -75,13 +152,103 @@ class ProfileRepository {
     final response = await _client
         .from('profiles')
         .select(
-          'id,email,username,civiq_code,bio,avatar_url,county_id,subcounty_id,is_public,show_online_status,show_read_receipts,allow_message_requests,show_activity',
+          'id,email,username,civiq_code,bio,avatar_url,county_id,subcounty_id,is_public,show_online_status,show_read_receipts,allow_message_requests,show_activity,is_verified,verification_type,role_label',
         )
         .eq('id', userId)
         .maybeSingle();
 
     if (response == null) return null;
-    return CiviqProfile.fromJson(response);
+    final profile = Map<String, dynamic>.from(response);
+    final counts = await socialCounts(userId);
+    profile
+      ..['followers_count'] = counts.followers
+      ..['following_count'] = counts.following;
+    return CiviqProfile.fromJson(profile);
+  }
+
+  Future<ProfileSocialCounts> socialCounts(String userId) async {
+    final followers = await _client
+        .from('follows')
+        .count(CountOption.exact)
+        .eq('following_id', userId);
+    final following = await _client
+        .from('follows')
+        .count(CountOption.exact)
+        .eq('follower_id', userId);
+    return ProfileSocialCounts(followers: followers, following: following);
+  }
+
+  Future<List<ProfileConnection>> followers(String userId) async {
+    final response = await _client
+        .from('follows')
+        .select(
+          'follower:profiles!follows_follower_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label)',
+        )
+        .eq('following_id', userId)
+        .order('created_at', ascending: false);
+    return response
+        .map<ProfileConnection>(
+          (row) => ProfileConnection.fromJson(
+            Map<String, dynamic>.from(row['follower'] as Map),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ProfileConnection>> following(String userId) async {
+    final response = await _client
+        .from('follows')
+        .select(
+          'following:profiles!follows_following_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label)',
+        )
+        .eq('follower_id', userId)
+        .order('created_at', ascending: false);
+    return response
+        .map<ProfileConnection>(
+          (row) => ProfileConnection.fromJson(
+            Map<String, dynamic>.from(row['following'] as Map),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ProfileConnection>> discoverCiviqUsers(
+    String currentUserId,
+  ) async {
+    final response = await _client.rpc('discover_civiq_profiles');
+    return (response as List)
+        .map(
+          (json) => ProfileConnection.fromJson(Map<String, dynamic>.from(json)),
+        )
+        .toList(growable: false);
+  }
+
+  Future<bool> isFollowing(String currentUserId, String targetUserId) async {
+    final response = await _client
+        .from('follows')
+        .select('follower_id')
+        .eq('follower_id', currentUserId)
+        .eq('following_id', targetUserId)
+        .maybeSingle();
+    return response != null;
+  }
+
+  Future<void> followProfile(String targetUserId) async {
+    await _client.rpc(
+      'follow_profile',
+      params: {'target_user_id': targetUserId},
+    );
+  }
+
+  Future<void> unfollowProfile(
+    String currentUserId,
+    String targetUserId,
+  ) async {
+    await _client
+        .from('follows')
+        .delete()
+        .eq('follower_id', currentUserId)
+        .eq('following_id', targetUserId);
   }
 
   Future<void> upsertProfile({
@@ -116,6 +283,23 @@ class ProfileRepository {
         .eq('username', username)
         .maybeSingle();
     return response != null;
+  }
+
+  bool isReservedUsername(String username) {
+    return _reservedUsernames.contains(username.trim().toLowerCase());
+  }
+
+  String? usernameValidationMessage(String username) {
+    final normalized = username.trim();
+    if (normalized.length < 3) return 'Use at least 3 characters.';
+    if (normalized.length > 30) return 'Use 30 characters or fewer.';
+    if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(normalized)) {
+      return 'Use letters, numbers, and underscores only.';
+    }
+    if (isReservedUsername(normalized)) {
+      return 'This username is reserved by CIVIQ.';
+    }
+    return null;
   }
 
   Future<void> updatePrivacySettings({
@@ -157,3 +341,32 @@ class ProfileRepository {
     return 'CQ-${chunk(4)}-${chunk(2)}';
   }
 }
+
+class ProfileSocialCounts {
+  const ProfileSocialCounts({required this.followers, required this.following});
+
+  final int followers;
+  final int following;
+}
+
+const _reservedUsernames = {
+  'admin',
+  'administrator',
+  'civiq',
+  'civiqafrica',
+  'support',
+  'help',
+  'moderator',
+  'official',
+  'verified',
+  'president',
+  'deputypresident',
+  'governor',
+  'senator',
+  'mp',
+  'mca',
+  'county',
+  'government',
+  'iebc',
+  'police',
+};

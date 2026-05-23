@@ -20,8 +20,10 @@ import '../../features/profile/presentation/screens/devices_screen.dart';
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/profile/presentation/screens/legal_history_screen.dart';
 import '../../features/profile/presentation/screens/privacy_visibility_screen.dart';
+import '../../features/profile/presentation/screens/public_profile_screen.dart';
 import '../../features/profile/presentation/screens/security_activity_screen.dart';
 import '../../features/profile/presentation/screens/security_screen.dart';
+import '../../features/profile/presentation/screens/social_list_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -89,6 +91,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/edit',
         builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/:id/followers',
+        builder: (context, state) {
+          final profileId = state.pathParameters['id'];
+          if (profileId == null || profileId.isEmpty) {
+            return const AppShell();
+          }
+          return SocialListScreen(
+            profileId: profileId,
+            type: SocialListType.followers,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/profile/:id/following',
+        builder: (context, state) {
+          final profileId = state.pathParameters['id'];
+          if (profileId == null || profileId.isEmpty) {
+            return const AppShell();
+          }
+          return SocialListScreen(
+            profileId: profileId,
+            type: SocialListType.following,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/profile/:id',
+        builder: (context, state) {
+          final profileId = state.pathParameters['id'];
+          if (profileId == null || profileId.isEmpty) {
+            return const AppShell();
+          }
+          return PublicProfileScreen(profileId: profileId);
+        },
       ),
       GoRoute(
         path: '/auth',

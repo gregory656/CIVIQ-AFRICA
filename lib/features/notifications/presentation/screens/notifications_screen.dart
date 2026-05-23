@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/confirmation_popup.dart';
@@ -130,11 +131,15 @@ class NotificationsScreen extends ConsumerWidget {
       ref.invalidate(unreadNotificationCountProvider);
     }
     if (!context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => NotificationDetailScreen(notification: item),
-      ),
-    );
+    if (item.actionRoute?.isNotEmpty == true) {
+      context.push(item.actionRoute!);
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => NotificationDetailScreen(notification: item),
+        ),
+      );
+    }
     _refresh(ref);
   }
 
@@ -265,6 +270,14 @@ class NotificationDetailScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 28),
+            if (notification.actionRoute?.isNotEmpty == true) ...[
+              FilledButton.icon(
+                onPressed: () => context.push(notification.actionRoute!),
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: Text(notification.actionLabel ?? 'Open profile'),
+              ),
+              const SizedBox(height: 10),
+            ],
             FilledButton.icon(
               onPressed: () => _archive(context, ref),
               icon: const Icon(Icons.archive_outlined),

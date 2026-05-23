@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -96,15 +97,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                     labelText: 'Username',
                     prefixIcon: Icon(Icons.alternate_email),
                   ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9_]')),
+                    LengthLimitingTextInputFormatter(30),
+                  ],
                   validator: (value) {
                     final username = value?.trim() ?? '';
-                    if (username.length < 3) {
-                      return 'Use at least 3 characters.';
-                    }
-                    if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(username)) {
-                      return 'Use letters, numbers, and underscores only.';
-                    }
-                    return null;
+                    return ref
+                        .read(profileRepositoryProvider)
+                        .usernameValidationMessage(username);
                   },
                 ),
                 if (_suggestions.isNotEmpty) ...[
