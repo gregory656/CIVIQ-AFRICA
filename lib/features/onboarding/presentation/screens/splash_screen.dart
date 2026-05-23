@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_assets.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -46,49 +45,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fade.value,
-              child: Transform.translate(
-                offset: Offset(0, -90 + (90 * _fall.value)),
-                child: child,
-              ),
-            );
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.black.withAlpha(30),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: Image.asset(
-                  AppAssets.splashScreen,
-                  width: 160,
-                  height: 160,
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'CIVIQ Africa',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primaryGreen,
-                ),
-              ),
-            ],
-          ),
+      body: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Opacity(
+            opacity: _fade.value,
+            child: Transform.translate(
+              offset: Offset(0, -24 + (24 * _fall.value)),
+              child: child,
+            ),
+          );
+        },
+        child: SizedBox.expand(
+          child: Image.asset(AppAssets.splashScreen, fit: BoxFit.cover),
         ),
       ),
     );

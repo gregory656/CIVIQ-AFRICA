@@ -60,12 +60,24 @@ class LocalNotificationService {
         ?.createNotificationChannel(_silentAndroidChannel);
   }
 
-  Future<void> requestPermission() async {
-    await _plugin
+  Future<bool> requestPermission() async {
+    final androidAllowed = await _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.requestNotificationsPermission();
+    final iosAllowed = await _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
+    final macAllowed = await _plugin
+        .resolvePlatformSpecificImplementation<
+          MacOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
+
+    return androidAllowed ?? iosAllowed ?? macAllowed ?? true;
   }
 
   Future<void> show({

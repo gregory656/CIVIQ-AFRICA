@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/local_notification_service.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../data/notification_settings_repository.dart';
 
@@ -26,7 +27,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
                 subtitle: 'Master switch for configurable notifications.',
                 value: settings.pushEnabled,
                 onChanged: (value) =>
-                    _save(context, ref, settings.copyWith(pushEnabled: value)),
+                    _togglePushNotifications(context, ref, settings, value),
               ),
               _SoundTile(settings: settings),
               _SwitchTile(
@@ -100,6 +101,34 @@ class NotificationSettingsScreen extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
       }
     }
+  }
+
+  static Future<void> _togglePushNotifications(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationSettings settings,
+    bool enabled,
+  ) async {
+    if (enabled) {
+      final allowed = await LocalNotificationService.instance
+          .requestPermission();
+      if (!allowed) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Turn on notification permission to enable alerts.',
+              ),
+            ),
+          );
+        }
+        ref.invalidate(notificationSettingsProvider);
+        return;
+      }
+    }
+
+    if (!context.mounted) return;
+    await _save(context, ref, settings.copyWith(pushEnabled: enabled));
   }
 }
 
