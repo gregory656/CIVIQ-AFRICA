@@ -255,9 +255,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
   void _handleMenu(BuildContext context, String value) {
     switch (value) {
       case 'new_group':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Small private groups are next.')),
-        );
+        context.push('/chats/new-group');
       case 'archived':
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Archived chats view is coming soon.')),
@@ -419,63 +417,94 @@ class _ConversationTile extends StatelessWidget {
         : conversation.type == ConversationType.group
         ? Icons.groups_outlined
         : Icons.person_outline;
-    final avatarUrl = selfChat ? currentAvatarUrl : conversation.peerAvatarUrl;
+    final avatarUrl = selfChat
+        ? currentAvatarUrl
+        : conversation.type == ConversationType.group
+        ? conversation.groupPhotoUrl
+        : conversation.peerAvatarUrl;
 
-    return ListTile(
-      minVerticalPadding: 12,
-      leading: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          ChatAvatar(imageUrl: avatarUrl, icon: icon),
-          if (selfChat)
-            const Positioned(right: -2, bottom: -2, child: _PinnedBadge())
-          else if (conversation.peerIsOnline)
-            const Positioned(right: 1, bottom: 1, child: _OnlineDot(size: 11)),
-        ],
-      ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-          if (conversation.peerIsVerified) ...[
-            const SizedBox(width: 4),
-            const CiviqVerifiedBadge(size: 15),
-          ],
-        ],
-      ),
-      subtitle: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text(
-              mineLast ? 'You: $subtitle' : subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.grey),
-            ),
-          ),
-          if (mineLast) ...[
-            const SizedBox(width: 4),
-            _ConversationDeliveryIcon(
-              state: conversation.lastMessageDeliveryStateFor(currentUserId),
-            ),
-          ],
-        ],
-      ),
-      trailing: selfChat
-          ? const Icon(Icons.push_pin, color: AppColors.primaryGreen, size: 20)
-          : conversation.unreadCount > 0
-          ? _UnreadBubble(count: conversation.unreadCount)
-          : const Icon(Icons.chevron_right, color: AppColors.grey),
+    return InkWell(
       onTap: () =>
           context.push('/chats/${conversation.id}', extra: conversation),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ChatAvatar(imageUrl: avatarUrl, icon: icon),
+                if (selfChat)
+                  const Positioned(right: -2, bottom: -2, child: _PinnedBadge())
+                else if (conversation.type != ConversationType.group &&
+                    conversation.peerIsOnline)
+                  const Positioned(
+                    right: 1,
+                    bottom: 1,
+                    child: _OnlineDot(size: 11),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      if (conversation.peerIsVerified) ...[
+                        const SizedBox(width: 4),
+                        const CiviqVerifiedBadge(size: 15),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          mineLast ? 'You: $subtitle' : subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.grey),
+                        ),
+                      ),
+                      if (mineLast) ...[
+                        const SizedBox(width: 4),
+                        _ConversationDeliveryIcon(
+                          state: conversation.lastMessageDeliveryStateFor(
+                            currentUserId,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (selfChat)
+              const Icon(
+                Icons.push_pin,
+                color: AppColors.primaryGreen,
+                size: 20,
+              )
+            else if (conversation.unreadCount > 0)
+              _UnreadBubble(count: conversation.unreadCount)
+            else
+              const Icon(Icons.chevron_right, color: AppColors.grey),
+          ],
+        ),
+      ),
     );
   }
 }

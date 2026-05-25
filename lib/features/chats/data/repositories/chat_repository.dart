@@ -35,6 +35,13 @@ final chatSearchProvider =
       return ref.watch(chatRepositoryProvider).searchProfiles(normalized);
     });
 
+final groupMembersProvider = FutureProvider.family<List<GroupMember>, String>((
+  ref,
+  conversationId,
+) {
+  return ref.watch(chatRepositoryProvider).fetchGroupMembers(conversationId);
+});
+
 class ChatRepository {
   ChatRepository(this._client);
 
@@ -188,6 +195,85 @@ class ChatRepository {
       params: {'target_user_id': targetUserId},
     );
     return response as String;
+  }
+
+  Future<String> createGroupConversation({
+    required String title,
+    required List<String> memberIds,
+    String? description,
+    String? photoUrl,
+  }) async {
+    final response = await _client.rpc(
+      'create_group_conversation',
+      params: {
+        'group_title': title,
+        'member_ids': memberIds,
+        'group_description': description,
+        'group_photo_url': photoUrl,
+      },
+    );
+    return response as String;
+  }
+
+  Future<List<GroupMember>> fetchGroupMembers(String conversationId) async {
+    final response = await _client.rpc(
+      'list_group_members',
+      params: {'target_conversation_id': conversationId, 'result_limit': 100},
+    );
+    return (response as List)
+        .map(
+          (json) =>
+              GroupMember.fromJson(Map<String, dynamic>.from(json as Map)),
+        )
+        .toList(growable: false);
+  }
+
+  Future<int> addGroupMembers({
+    required String conversationId,
+    required List<String> memberIds,
+  }) async {
+    final response = await _client.rpc(
+      'add_group_members',
+      params: {
+        'target_conversation_id': conversationId,
+        'member_ids': memberIds,
+      },
+    );
+    return (response as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> removeGroupMember({
+    required String conversationId,
+    required String userId,
+  }) async {
+    await _client.rpc(
+      'remove_group_member',
+      params: {
+        'target_conversation_id': conversationId,
+        'target_user_id': userId,
+      },
+    );
+  }
+
+  Future<void> leaveGroup(String conversationId) async {
+    await _client.rpc(
+      'leave_group',
+      params: {'target_conversation_id': conversationId},
+    );
+  }
+
+  Future<void> reportGroup(String conversationId) async {
+    await _client.rpc(
+      'report_group',
+      params: {'target_conversation_id': conversationId},
+    );
+  }
+
+  Future<void> deleteGroup(String conversationId) async {
+    await _client.rpc(
+      'delete_group',
+      params: {'target_conversation_id': conversationId},
+    );
   }
 
   Future<void> sendMessage({

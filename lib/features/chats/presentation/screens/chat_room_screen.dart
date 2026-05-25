@@ -102,6 +102,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final title =
         headerConversation?.displayTitle(currentProfile?.username) ?? 'Chat';
     final selfChat = headerConversation?.type == ConversationType.self;
+    final groupChat = headerConversation?.type == ConversationType.group;
     final peerOnline = headerConversation?.peerIsOnline ?? false;
     final subtitle = _typingUserIds.isNotEmpty
         ? 'typing...'
@@ -112,6 +113,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         : _statusLabel(headerConversation);
     final avatarUrl = selfChat
         ? currentProfile?.avatarUrl
+        : groupChat
+        ? headerConversation?.groupPhotoUrl
         : headerConversation?.peerAvatarUrl;
 
     return Scaffold(
@@ -216,7 +219,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             tooltip: 'Conversation menu',
             onSelected: _handleRoomMenu,
             itemBuilder: (context) => const [
-              PopupMenuItem(value: 'profile', child: Text('View Profile')),
+              PopupMenuItem(value: 'profile', child: Text('View Info')),
               PopupMenuItem(value: 'search', child: Text('Search Messages')),
               PopupMenuItem(
                 value: 'disappearing',
@@ -272,6 +275,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                         ChatMessage message => _MessageBubble(
                           message: message,
                           currentUserId: currentUserId,
+                          showSender: groupChat,
                           onFavorite: () => _toggleFavorite(message.id),
                         ),
                         _PendingChatMessage pending => _PendingMessageBubble(
@@ -351,7 +355,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   String _statusLabel(ChatConversation? conversation) {
     if (conversation == null) return '';
-    if (conversation.type == ConversationType.group) return 'Group chat';
+    if (conversation.type == ConversationType.group) {
+      final summary = conversation.groupMemberSummary;
+      if (summary?.isNotEmpty == true) return summary!;
+      if (conversation.groupMemberCount > 0) {
+        return '${conversation.groupMemberCount} members';
+      }
+      return 'Group chat';
+    }
     if (!conversation.peerShowOnlineStatus) return 'Last seen hidden';
     if (conversation.peerIsOnline) return 'Online';
     final lastSeen = conversation.peerLastSeen;
@@ -451,6 +462,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final conversation = widget.initialConversation ?? _conversationFromList();
     switch (value) {
       case 'profile':
+        if (conversation?.type == ConversationType.group) {
+          context.push(
+            '/chats/${widget.conversationId}/info',
+            extra: conversation,
+          );
+          return;
+        }
         final peerId = conversation?.peerId;
         if (peerId != null) context.push('/profile/$peerId');
         return;
@@ -497,11 +515,13 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.currentUserId,
+    required this.showSender,
     required this.onFavorite,
   });
 
   final ChatMessage message;
   final String? currentUserId;
+  final bool showSender;
   final VoidCallback onFavorite;
 
   @override
@@ -513,6 +533,7 @@ class _MessageBubble extends StatelessWidget {
     final metaColor = mine
         ? AppColors.white.withValues(alpha: 0.78)
         : AppColors.grey;
+    final senderName = message.senderUsername;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -521,6 +542,10 @@ class _MessageBubble extends StatelessWidget {
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         children: [
+          if (showSender && !mine) ...[
+            ChatAvatar(imageUrl: message.senderAvatarUrl, radius: 14),
+            const SizedBox(width: 6),
+          ],
           ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.sizeOf(context).width * 0.76,
@@ -549,9 +574,23 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.fromLTRB(14, 9, 10, 7),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: mine
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (showSender && !mine && senderName?.isNotEmpty == true)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 3),
+                          child: Text(
+                            '@$senderName',
+                            style: const TextStyle(
+                              color: AppColors.primaryGreen,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       Text(
                         message.deletedAt == null
                             ? message.content ?? ''

@@ -118,9 +118,99 @@ Current status:
 9. Message notifications: implemented through database trigger and local listener
 10. Chat-list delivery previews: implemented for sent, delivered, and read states
 11. Optimistic message send state: implemented with pending clock icon
-12. Groups: database/RPC foundation only
+12. Groups: Phase 2.2 private group system implemented
 13. Media uploads: deferred
 14. Disappearing messages: deferred
+
+## Phase 2.2 - Group Messaging System
+
+Deployed on May 25, 2026 through Supabase migration:
+
+- `supabase/migrations/20260525152000_phase22_group_messaging.sql`
+
+No Edge Functions were added or deployed for this phase. Group invites, membership logs, and notifications are handled inside Postgres RPCs/triggers because this phase is still small private groups and Supabase Realtime is enough for active-room refresh.
+
+### Tables And Columns
+
+Updated `conversations`:
+
+- `group_photo_url`
+- `group_description`
+- `is_group`
+
+Updated `conversation_participants`:
+
+- `role`: `member`, `admin`, `owner`
+
+Created `group_events`:
+
+- `id`
+- `conversation_id`
+- `actor_id`
+- `target_user_id`
+- `event_type`
+- `metadata`
+- `created_at`
+
+Created `group_reports`:
+
+- `id`
+- `conversation_id`
+- `reporter_id`
+- `reason`
+- `created_at`
+
+### RPCs
+
+Group RPCs now owned by the database:
+
+- `create_group_conversation(text, uuid[], text, text)`
+- `list_group_members(uuid, int)`
+- `add_group_members(uuid, uuid[])`
+- `remove_group_member(uuid, uuid)`
+- `leave_group(uuid)`
+- `update_group_profile(uuid, text, text, text)`
+- `set_group_member_role(uuid, uuid, text)`
+- `report_group(uuid, text)`
+- `delete_group(uuid)`
+- `group_role(uuid, uuid)`
+- `can_manage_group(uuid)`
+
+Updated shared RPC:
+
+- `list_conversations()` now returns group photo, description, member count, member summary, and current user's group role.
+
+### Flutter Implementation
+
+Added:
+
+- `NewGroupScreen`
+- `GroupInfoScreen`
+- group member model and repository methods
+- route `/chats/new-group`
+- route `/chats/:id/info`
+- group-aware chat list avatar/subtitle
+- group-aware chat room header
+- group message bubbles showing sender avatar and username for other members
+- group info actions for add members, remove members, leave, report, and owner-only delete
+- chat/member list verified badges are kept directly after usernames
+- chat conversation rows use a custom fixed-shape row instead of `ListTile` so avatar, title/subtitle, badges, and trailing state all receive bounded constraints; this prevents the blank-tab `RenderBox was not laid out: RenderIndexedSemantics` failure
+
+### Decisions Made
+
+- Groups are capped at 50 total members for Phase 2.2.
+- Search is debounced at 300ms and only queries after 2 characters.
+- The creator is inserted as `owner`; everyone else starts as `member`.
+- Admin/owner permissions are stored in `conversation_participants.role`, not hardcoded in Flutter.
+- Owners can delete groups and remove/change elevated members.
+- Admins can add members and remove regular members.
+- Members can send messages, leave, and report.
+- Removed users immediately lose access because their participant row is deleted and RLS checks membership.
+- Group invite notifications use category `group_invite` and action route `/chats/{conversation_id}` so the bell opens the group.
+- Group events are created now for joins, removals, leaves, role changes, updates, reports, and deletion; a full visible timeline remains later.
+- Realtime remains active-room only; the app does not subscribe to every group.
+- Latest message loading remains paginated through `list_conversation_messages` with a 60-message client request.
+- Media-heavy features, calls, reactions, polls, stories, channels, and voice notes remain deferred.
 
 ## Moderation And Security
 

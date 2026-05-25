@@ -5,6 +5,8 @@ import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/terms_screen.dart';
 import '../../features/chats/data/models/chat_models.dart';
 import '../../features/chats/presentation/screens/chat_room_screen.dart';
+import '../../features/chats/presentation/screens/group_info_screen.dart';
+import '../../features/chats/presentation/screens/new_group_screen.dart';
 import '../../features/export/presentation/screens/export_data_screen.dart';
 import '../../features/home/presentation/screens/app_shell.dart';
 import '../../features/legal/presentation/screens/legal_document_screen.dart';
@@ -53,6 +55,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/chats/new-group',
+        builder: (context, state) => const NewGroupScreen(),
+      ),
+      GoRoute(
+        path: '/chats/:id/info',
+        builder: (context, state) {
+          final conversationId = state.pathParameters['id'];
+          if (conversationId == null || conversationId.isEmpty) {
+            return const AppShell();
+          }
+          return GroupInfoScreen(
+            conversationId: conversationId,
+            initialConversation: state.extra is ChatConversation
+                ? state.extra! as ChatConversation
+                : null,
+          );
+        },
       ),
       GoRoute(
         path: '/chats/:id',

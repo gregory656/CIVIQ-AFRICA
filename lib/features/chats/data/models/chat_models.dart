@@ -30,6 +30,11 @@ class ChatConversation {
     this.lastMessageCreatedAt,
     this.lastMessageDeliveredCount = 0,
     this.lastMessageReadCount = 0,
+    this.groupPhotoUrl,
+    this.groupDescription,
+    this.groupMemberCount = 0,
+    this.groupMemberSummary,
+    this.currentUserRole,
     this.peerId,
     this.peerUsername,
     this.peerAvatarUrl,
@@ -55,6 +60,11 @@ class ChatConversation {
   final DateTime? lastMessageCreatedAt;
   final int lastMessageDeliveredCount;
   final int lastMessageReadCount;
+  final String? groupPhotoUrl;
+  final String? groupDescription;
+  final int groupMemberCount;
+  final String? groupMemberSummary;
+  final String? currentUserRole;
   final String? peerId;
   final String? peerUsername;
   final String? peerAvatarUrl;
@@ -77,6 +87,12 @@ class ChatConversation {
     if (type == ConversationType.self) {
       final username = currentUsername;
       return username?.isNotEmpty == true ? '@$username (You)' : 'You';
+    }
+    if (type == ConversationType.group) {
+      final summary = groupMemberSummary;
+      if (summary?.isNotEmpty == true) return summary!;
+      if (groupMemberCount > 0) return '$groupMemberCount members';
+      return 'Group chat';
     }
     return lastMessageContent?.isNotEmpty == true
         ? lastMessageContent!
@@ -111,6 +127,11 @@ class ChatConversation {
           (json['last_message_delivered_count'] as num?)?.toInt() ?? 0,
       lastMessageReadCount:
           (json['last_message_read_count'] as num?)?.toInt() ?? 0,
+      groupPhotoUrl: json['group_photo_url'] as String?,
+      groupDescription: json['group_description'] as String?,
+      groupMemberCount: (json['group_member_count'] as num?)?.toInt() ?? 0,
+      groupMemberSummary: json['group_member_summary'] as String?,
+      currentUserRole: json['current_user_role'] as String?,
       peerId: json['peer_id'] as String?,
       peerUsername: json['peer_username'] as String?,
       peerAvatarUrl: json['peer_avatar_url'] as String?,
@@ -121,6 +142,43 @@ class ChatConversation {
           : _date(json['peer_last_seen']),
       peerShowOnlineStatus: json['peer_show_online_status'] as bool? ?? true,
       peerRoleLabel: json['peer_role_label'] as String?,
+    );
+  }
+}
+
+class GroupMember {
+  const GroupMember({
+    required this.userId,
+    required this.isVerified,
+    required this.memberRole,
+    required this.joinedAt,
+    this.username,
+    this.avatarUrl,
+    this.roleLabel,
+  });
+
+  final String userId;
+  final String? username;
+  final String? avatarUrl;
+  final bool isVerified;
+  final String? roleLabel;
+  final String memberRole;
+  final DateTime joinedAt;
+
+  String get displayName {
+    final value = username;
+    return value?.isNotEmpty == true ? '@$value' : 'CIVIQ Member';
+  }
+
+  factory GroupMember.fromJson(Map<String, dynamic> json) {
+    return GroupMember(
+      userId: json['user_id'] as String,
+      username: json['username'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
+      isVerified: json['is_verified'] as bool? ?? false,
+      roleLabel: json['role_label'] as String?,
+      memberRole: json['member_role'] as String? ?? 'member',
+      joinedAt: _date(json['joined_at']),
     );
   }
 }
