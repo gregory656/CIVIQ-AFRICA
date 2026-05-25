@@ -34,11 +34,29 @@ class AuthRepository {
     return _client.auth.signInWithPassword(email: email, password: password);
   }
 
-  Future<void> signOut() => _client.auth.signOut();
+  Future<void> signOut() async {
+    await _markOffline();
+    await _client.auth.signOut();
+  }
 
-  Future<void> signOutOtherSessions() =>
-      _client.auth.signOut(scope: SignOutScope.others);
+  Future<void> signOutOtherSessions() async {
+    await _client.auth.signOut(scope: SignOutScope.others);
+  }
 
-  Future<void> signOutAllSessions() =>
-      _client.auth.signOut(scope: SignOutScope.global);
+  Future<void> signOutAllSessions() async {
+    await _markOffline();
+    await _client.auth.signOut(scope: SignOutScope.global);
+  }
+
+  Future<void> _markOffline() async {
+    if (_client.auth.currentUser == null) return;
+    try {
+      await _client.rpc(
+        'update_profile_presence',
+        params: {'online_now': false},
+      );
+    } catch (_) {
+      // Presence is best-effort during logout; auth cleanup must still finish.
+    }
+  }
 }

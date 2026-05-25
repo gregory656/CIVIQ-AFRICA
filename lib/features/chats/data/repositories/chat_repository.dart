@@ -15,8 +15,9 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 final conversationsProvider = FutureProvider<List<ChatConversation>>((
   ref,
 ) async {
-  final userId = ref.watch(currentAuthUserIdProvider);
-  if (userId == null) return const [];
+  final providerUserId = ref.watch(currentAuthUserIdProvider);
+  final authUserId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+  if (providerUserId == null && authUserId == null) return const [];
   return ref.watch(chatRepositoryProvider).fetchConversations();
 });
 
@@ -38,6 +39,8 @@ class ChatRepository {
   ChatRepository(this._client);
 
   final SupabaseClient _client;
+
+  String? get currentUserId => _client.auth.currentUser?.id;
 
   RealtimeChannel messagesChannel(
     String conversationId, {
@@ -66,18 +69,20 @@ class ChatRepository {
   }
 
   RealtimeChannel conversationsChannel({required VoidCallback onChange}) {
+    final userId = _client.auth.currentUser?.id;
     return _client
-        .channel('chat_conversations:${_client.auth.currentUser?.id ?? 'anon'}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'messages',
-          callback: (_) => onChange(),
-        )
+        .channel('chat_conversations:${userId ?? 'anon'}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'conversation_participants',
+          filter: userId == null
+              ? null
+              : PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'user_id',
+                  value: userId,
+                ),
           callback: (_) => onChange(),
         )
         .subscribe();
@@ -119,6 +124,19 @@ class ChatRepository {
     await _client
         .channel('typing:$conversationId')
         .sendBroadcastMessage(event: 'typing', payload: {'user_id': userId});
+  }
+
+  Future<void> updatePresence({required bool isOnline}) async {
+    if (_client.auth.currentUser == null) return;
+    await _client.rpc(
+      'update_profile_presence',
+      params: {'online_now': isOnline},
+    );
+  }
+
+  Future<void> ensureCurrentProfile() async {
+    if (_client.auth.currentUser == null) return;
+    await _client.rpc('ensure_current_profile');
   }
 
   Future<List<ChatConversation>> fetchConversations() async {

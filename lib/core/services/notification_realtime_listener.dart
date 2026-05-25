@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import '../../features/notifications/data/notification_settings_repository.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/chats/data/repositories/chat_repository.dart';
 import '../../features/profile/data/profile_repository.dart';
 import '../../features/profile/data/security_repository.dart';
 import 'local_notification_service.dart';
@@ -48,6 +49,7 @@ class _NotificationRealtimeListenerState
           ref.invalidate(exportHistoryProvider);
           ref.invalidate(accountDeletionProvider);
           ref.invalidate(legalHistoryProvider);
+          ref.invalidate(conversationsProvider);
           _syncSubscription();
         });
     _syncSubscription();
@@ -94,6 +96,7 @@ class _NotificationRealtimeListenerState
 
     ref.invalidate(notificationsProvider);
     ref.invalidate(unreadNotificationCountProvider);
+    ref.invalidate(conversationsProvider);
 
     final userId = _userId;
     if (userId == null) return;

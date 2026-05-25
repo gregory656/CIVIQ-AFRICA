@@ -9,6 +9,7 @@ import '../../../../core/widgets/brand_mark.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
+import '../../../../features/chats/data/repositories/chat_repository.dart';
 import '../../../../features/chats/presentation/screens/chats_screen.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
@@ -583,6 +584,7 @@ class _DangerZoneActionsState extends ConsumerState<_DangerZoneActions> {
 
   void _clearUserScopedProviders(WidgetRef ref) {
     ref.invalidate(currentProfileProvider);
+    ref.invalidate(conversationsProvider);
     ref.invalidate(notificationsProvider);
     ref.invalidate(archivedNotificationsProvider);
     ref.invalidate(unreadNotificationCountProvider);

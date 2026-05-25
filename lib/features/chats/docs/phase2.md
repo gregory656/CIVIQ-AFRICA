@@ -34,6 +34,7 @@ RPCs:
 - `search_chat_profiles`
 - `list_conversations`
 - `list_conversation_messages`
+- `update_profile_presence`
 
 Flutter:
 
@@ -46,6 +47,12 @@ Flutter:
 - read receipt marking
 - ephemeral typing broadcast
 - favorite messages by long press
+- pinned Saved Messages with the profile avatar
+- real online/last-seen status from profile presence
+- chat message notifications through notification rows
+- auth-change cache invalidation for account switching
+- chat-list polish: verified badge sits directly after the username, and outgoing delivery ticks sit directly after the `You:` message preview
+- optimistic sending: outgoing text appears immediately with a clock icon, stays visible until the confirmed server message is present, and retries queued sends instead of disappearing during network gaps
 - call, video, media, voice, disappearing messages, theme, and group controls as placeholders
 
 ## Tables
@@ -107,9 +114,13 @@ Current status:
 5. Read receipts: implemented with privacy guard
 6. Typing indicators: implemented as ephemeral broadcast
 7. Favorites: implemented
-8. Groups: database/RPC foundation only
-9. Media uploads: deferred
-10. Disappearing messages: deferred
+8. Presence and last seen: implemented
+9. Message notifications: implemented through database trigger and local listener
+10. Chat-list delivery previews: implemented for sent, delivered, and read states
+11. Optimistic message send state: implemented with pending clock icon
+12. Groups: database/RPC foundation only
+13. Media uploads: deferred
+14. Disappearing messages: deferred
 
 ## Moderation And Security
 
@@ -136,7 +147,7 @@ Near term:
 
 - add paginated older-message loading with `before_message_created_at`
 - add conversation title and message-content search via indexed RPC
-- add presence tracking with Supabase Presence and `show_online_status`
+- move message notification fanout to an Edge Function queue before full push rollout
 - add archived chats screen
 - add small private group UI
 

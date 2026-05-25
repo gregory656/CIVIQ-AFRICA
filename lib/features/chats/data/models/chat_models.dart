@@ -28,10 +28,15 @@ class ChatConversation {
     this.lastMessageContent,
     this.lastMessageSenderId,
     this.lastMessageCreatedAt,
+    this.lastMessageDeliveredCount = 0,
+    this.lastMessageReadCount = 0,
     this.peerId,
     this.peerUsername,
     this.peerAvatarUrl,
     this.peerIsVerified = false,
+    this.peerIsOnline = false,
+    this.peerLastSeen,
+    this.peerShowOnlineStatus = true,
     this.peerRoleLabel,
   });
 
@@ -48,10 +53,15 @@ class ChatConversation {
   final String? lastMessageContent;
   final String? lastMessageSenderId;
   final DateTime? lastMessageCreatedAt;
+  final int lastMessageDeliveredCount;
+  final int lastMessageReadCount;
   final String? peerId;
   final String? peerUsername;
   final String? peerAvatarUrl;
   final bool peerIsVerified;
+  final bool peerIsOnline;
+  final DateTime? peerLastSeen;
+  final bool peerShowOnlineStatus;
   final String? peerRoleLabel;
 
   String displayTitle(String? currentUsername) {
@@ -73,6 +83,13 @@ class ChatConversation {
         : 'No messages yet';
   }
 
+  MessageDeliveryState lastMessageDeliveryStateFor(String? currentUserId) {
+    if (lastMessageSenderId != currentUserId) return MessageDeliveryState.read;
+    if (lastMessageReadCount > 0) return MessageDeliveryState.read;
+    if (lastMessageDeliveredCount > 0) return MessageDeliveryState.delivered;
+    return MessageDeliveryState.sent;
+  }
+
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     return ChatConversation(
       id: json['id'] as String,
@@ -90,10 +107,19 @@ class ChatConversation {
       lastMessageCreatedAt: json['last_message_created_at'] == null
           ? null
           : _date(json['last_message_created_at']),
+      lastMessageDeliveredCount:
+          (json['last_message_delivered_count'] as num?)?.toInt() ?? 0,
+      lastMessageReadCount:
+          (json['last_message_read_count'] as num?)?.toInt() ?? 0,
       peerId: json['peer_id'] as String?,
       peerUsername: json['peer_username'] as String?,
       peerAvatarUrl: json['peer_avatar_url'] as String?,
       peerIsVerified: json['peer_is_verified'] as bool? ?? false,
+      peerIsOnline: json['peer_is_online'] as bool? ?? false,
+      peerLastSeen: json['peer_last_seen'] == null
+          ? null
+          : _date(json['peer_last_seen']),
+      peerShowOnlineStatus: json['peer_show_online_status'] as bool? ?? true,
       peerRoleLabel: json['peer_role_label'] as String?,
     );
   }

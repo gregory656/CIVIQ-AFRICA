@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/verified_badge.dart';
+import '../../../auth/data/auth_repository.dart';
 import '../../../profile/data/profile_repository.dart';
 import '../../data/models/chat_models.dart';
 import '../../data/repositories/chat_repository.dart';
@@ -28,40 +30,55 @@ class ChatsScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends ConsumerState<ChatsScreen> {
+class _ChatsScreenState extends ConsumerState<ChatsScreen>
+    with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   _ChatFilter _filter = _ChatFilter.all;
   Timer? _searchDebounce;
+  RealtimeChannel? _conversationsChannel;
+  Timer? _presenceTimer;
+  String? _channelUserId;
+  String? _startupError;
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(chatRepositoryProvider).ensureSelfConversation(),
-    );
+    WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_onSearchChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapForUser());
+    _presenceTimer = Timer.periodic(
+      const Duration(seconds: 55),
+      (_) => _updatePresenceSafely(isOnline: true),
+    );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchDebounce?.cancel();
+    _presenceTimer?.cancel();
+    final channel = _conversationsChannel;
+    if (channel != null) {
+      ref.read(chatRepositoryProvider).removeChannel(channel);
+    }
     _searchController
       ..removeListener(_onSearchChanged)
       ..dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => _searchQuery = _searchController.text);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(currentAuthUserIdProvider, (previous, next) {
+      if (previous == next) return;
+      _bootstrapForUser();
+    });
+
     final conversations = ref.watch(conversationsProvider);
+    final currentUserId =
+        ref.watch(currentAuthUserIdProvider) ??
+        ref.watch(chatRepositoryProvider).currentUserId;
     final currentProfile = ref
         .watch(currentProfileProvider)
         .maybeWhen(data: (profile) => profile, orElse: () => null);
@@ -77,6 +94,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             value: _filter,
             onChanged: (value) => setState(() => _filter = value),
           ),
+          if (_startupError != null)
+            _ChatStartupNotice(
+              message: _startupError!,
+              onRetry: _bootstrapForUser,
+            ),
           Expanded(
             child: _searchQuery.trim().length >= 2
                 ? _SearchResults(query: _searchQuery)
@@ -104,7 +126,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                               const Divider(height: 1, indent: 72),
                           itemBuilder: (context, index) => _ConversationTile(
                             conversation: filtered[index],
+                            currentUserId: currentUserId,
                             currentUsername: currentProfile?.username,
+                            currentAvatarUrl: currentProfile?.avatarUrl,
                           ),
                         ),
                       );
@@ -116,8 +140,92 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     );
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _updatePresenceSafely(isOnline: true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _updatePresenceSafely(isOnline: false);
+    }
+  }
+
+  void _subscribe() {
+    final userId =
+        ref.read(currentAuthUserIdProvider) ??
+        ref.read(chatRepositoryProvider).currentUserId;
+    if (userId == null) {
+      _removeConversationChannel();
+      _channelUserId = null;
+      return;
+    }
+    if (_channelUserId == userId && _conversationsChannel != null) return;
+    _removeConversationChannel();
+    _channelUserId = userId;
+    _conversationsChannel = ref
+        .read(chatRepositoryProvider)
+        .conversationsChannel(
+          onChange: () => ref.invalidate(conversationsProvider),
+        );
+  }
+
+  void _removeConversationChannel() {
+    final channel = _conversationsChannel;
+    if (channel != null) {
+      ref.read(chatRepositoryProvider).removeChannel(channel);
+    }
+    _conversationsChannel = null;
+  }
+
+  Future<void> _bootstrapForUser() async {
+    final userId =
+        ref.read(currentAuthUserIdProvider) ??
+        ref.read(chatRepositoryProvider).currentUserId;
+    if (ref.read(currentAuthUserIdProvider) == null && userId != null) {
+      ref.read(currentAuthUserIdProvider.notifier).state = userId;
+    }
+    _subscribe();
+    if (userId == null) {
+      if (mounted) setState(() => _startupError = null);
+      return;
+    }
+    try {
+      await ref.read(chatRepositoryProvider).ensureCurrentProfile();
+      await ref.read(chatRepositoryProvider).ensureSelfConversation();
+      await ref.read(chatRepositoryProvider).updatePresence(isOnline: true);
+      if (!mounted) return;
+      setState(() => _startupError = null);
+      ref.invalidate(conversationsProvider);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _startupError =
+            'Chat setup needs a retry. If this account is new, finish profile setup first.';
+      });
+    }
+  }
+
+  Future<void> _updatePresenceSafely({required bool isOnline}) async {
+    final userId =
+        ref.read(currentAuthUserIdProvider) ??
+        ref.read(chatRepositoryProvider).currentUserId;
+    if (userId == null) return;
+    try {
+      await ref.read(chatRepositoryProvider).updatePresence(isOnline: isOnline);
+    } catch (_) {
+      // Presence should never blank or block the chat UI.
+    }
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) setState(() => _searchQuery = _searchController.text);
+    });
+  }
+
   List<ChatConversation> _filtered(List<ChatConversation> items) {
-    return switch (_filter) {
+    final filtered = switch (_filter) {
       _ChatFilter.all => items.where((item) => !item.isArchived).toList(),
       _ChatFilter.unread =>
         items
@@ -132,6 +240,16 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             )
             .toList(),
     };
+    filtered.sort((a, b) {
+      if (_filter == _ChatFilter.all) {
+        if (a.type == ConversationType.self) return -1;
+        if (b.type == ConversationType.self) return 1;
+      }
+      final aTime = a.lastMessageCreatedAt ?? a.updatedAt;
+      final bTime = b.lastMessageCreatedAt ?? b.updatedAt;
+      return bTime.compareTo(aTime);
+    });
+    return filtered;
   }
 
   void _handleMenu(BuildContext context, String value) {
@@ -278,28 +396,47 @@ class _FilterBar extends StatelessWidget {
 class _ConversationTile extends StatelessWidget {
   const _ConversationTile({
     required this.conversation,
+    required this.currentUserId,
     required this.currentUsername,
+    required this.currentAvatarUrl,
   });
 
   final ChatConversation conversation;
+  final String? currentUserId;
   final String? currentUsername;
+  final String? currentAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final title = conversation.displayTitle(currentUsername);
     final subtitle = conversation.displaySubtitle(currentUsername);
-    final icon = conversation.type == ConversationType.self
+    final selfChat = conversation.type == ConversationType.self;
+    final mineLast =
+        conversation.lastMessageSenderId != null &&
+        conversation.lastMessageSenderId == currentUserId;
+    final icon = selfChat
         ? Icons.bookmark_outline
         : conversation.type == ConversationType.group
         ? Icons.groups_outlined
         : Icons.person_outline;
+    final avatarUrl = selfChat ? currentAvatarUrl : conversation.peerAvatarUrl;
 
     return ListTile(
       minVerticalPadding: 12,
-      leading: ChatAvatar(imageUrl: conversation.peerAvatarUrl, icon: icon),
-      title: Row(
+      leading: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Expanded(
+          ChatAvatar(imageUrl: avatarUrl, icon: icon),
+          if (selfChat)
+            const Positioned(right: -2, bottom: -2, child: _PinnedBadge())
+          else if (conversation.peerIsOnline)
+            const Positioned(right: 1, bottom: 1, child: _OnlineDot(size: 11)),
+        ],
+      ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
             child: Text(
               title,
               maxLines: 1,
@@ -313,17 +450,116 @@ class _ConversationTile extends StatelessWidget {
           ],
         ],
       ),
-      subtitle: Text(
-        subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: AppColors.grey),
+      subtitle: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              mineLast ? 'You: $subtitle' : subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.grey),
+            ),
+          ),
+          if (mineLast) ...[
+            const SizedBox(width: 4),
+            _ConversationDeliveryIcon(
+              state: conversation.lastMessageDeliveryStateFor(currentUserId),
+            ),
+          ],
+        ],
       ),
-      trailing: conversation.unreadCount > 0
+      trailing: selfChat
+          ? const Icon(Icons.push_pin, color: AppColors.primaryGreen, size: 20)
+          : conversation.unreadCount > 0
           ? _UnreadBubble(count: conversation.unreadCount)
           : const Icon(Icons.chevron_right, color: AppColors.grey),
       onTap: () =>
           context.push('/chats/${conversation.id}', extra: conversation),
+    );
+  }
+}
+
+class _PinnedBadge extends StatelessWidget {
+  const _PinnedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreen,
+        border: Border.all(color: AppColors.white, width: 2),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.push_pin, color: AppColors.white, size: 10),
+    );
+  }
+}
+
+class _OnlineDot extends StatelessWidget {
+  const _OnlineDot({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.success,
+        border: Border.all(color: AppColors.white, width: 2),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _ChatStartupNotice extends StatelessWidget {
+  const _ChatStartupNotice({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.12),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.45)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.info_outline,
+                size: 18,
+                color: AppColors.warning,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.black,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -418,6 +654,23 @@ class _UnreadBubble extends StatelessWidget {
           fontWeight: FontWeight.w800,
         ),
       ),
+    );
+  }
+}
+
+class _ConversationDeliveryIcon extends StatelessWidget {
+  const _ConversationDeliveryIcon({required this.state});
+
+  final MessageDeliveryState state;
+  static const _seenBlue = Color(0xFF34B7F1);
+
+  @override
+  Widget build(BuildContext context) {
+    final read = state == MessageDeliveryState.read;
+    return Icon(
+      state == MessageDeliveryState.sent ? Icons.check : Icons.done_all,
+      size: 19,
+      color: read ? _seenBlue : AppColors.grey,
     );
   }
 }
