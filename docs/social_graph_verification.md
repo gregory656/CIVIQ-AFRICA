@@ -1,11 +1,46 @@
 # Social Graph And Verification
 
+## Current Launch Preview Badge Policy
+
+For the launch/growth period, every account receives the blue verification tick. The database marks new profile rows with:
+
+```sql
+is_verified = true
+verification_type = 'launch_preview'
+verified_at = now()
+```
+
+Existing accounts are also backfilled to the same preview status. This is intentionally a launch perk, not the final trust policy. It lets early users enjoy the full social experience while SIVIQ grows.
+
+## Later Enforcement Plan
+
+When SIVIQ is ready to monetize or tighten trust:
+
+1. Stop auto-verifying new accounts in `public.handle_new_user_profile()`.
+2. Keep ordinary users at `is_verified = false`.
+3. Use `verification_requests` for official or paid review.
+4. Let only admins/service-role functions update `is_verified`, `verified_at`, `verified_by`, `verification_type`, and `role_label`.
+5. Convert or expire `verification_type = 'launch_preview'` badges with a one-time migration.
+
+Example future migration shape:
+
+```sql
+update public.profiles
+set is_verified = false,
+    verified_at = null,
+    verification_type = null
+where verification_type = 'launch_preview';
+```
+
+Keep official roles separate from the blue tick. `role_label` should only be set after review, for example `Governor - Kakamega`.
+
+
 This phase separates popularity from civic trust.
 
 ## Profile Header
 
 - The profile avatar appears first.
-- The username row includes the CIVIQ verified badge when `profiles.is_verified = true`.
+- The username row includes the SIVIQ verified badge when `profiles.is_verified = true`.
 - The social row sits directly below the username and shows `Following | Followers`.
 - Both social counts are tappable and open the full account list for that profile.
 - Government identity uses both the badge and `profiles.role_label`, for example `Governor - Kakamega`.
@@ -22,7 +57,7 @@ verification_type text
 role_label text
 ```
 
-`is_verified` means CIVIQ reviewed the account identity. It does not mean the account is popular, official, premium, or more influential.
+`is_verified` means SIVIQ reviewed the account identity. It does not mean the account is popular, official, premium, or more influential.
 
 `role_label` is separate from the badge and should only describe an official role or public identity after review.
 
@@ -52,14 +87,14 @@ RLS allows authenticated users to read follow relationships, create follows from
 
 ## Follow Discovery Algorithm
 
-When a user opens their `Following` list, CIVIQ shows two layers:
+When a user opens their `Following` list, SIVIQ shows two layers:
 
 - the accounts the user already follows
-- a discovery section titled `Follow your fellow CIVIQ users`
+- a discovery section titled `Follow your fellow SIVIQ users`
 
-The discovery section reads all CIVIQ profiles except the signed-in user, then removes accounts already followed by that user. Verified accounts sort first, then usernames sort alphabetically. Each row shows the profile avatar, `@username`, verified badge, CIVIQ code, and a deep-blue `Follow` button.
+The discovery section reads all SIVIQ profiles except the signed-in user, then removes accounts already followed by that user. Verified accounts sort first, then usernames sort alphabetically. Each row shows the profile avatar, `@username`, verified badge, SIVIQ code, and a deep-blue `Follow` button.
 
-The row `Follow` button is constrained to a fixed compact width because CIVIQ's global filled-button theme is full-width for forms. Without that local constraint, profile rows can fail layout when discoverable accounts render.
+The row `Follow` button is constrained to a fixed compact width because SIVIQ's global filled-button theme is full-width for forms. Without that local constraint, profile rows can fail layout when discoverable accounts render.
 
 ## Current Following Screen Behavior
 
@@ -69,21 +104,21 @@ The Following screen now paints immediately before waiting on Supabase, so users
 - current following count
 - discoverable CIVIQ user count
 - already-followed accounts, if any
-- discoverable CIVIQ profiles with compact blue `Follow` buttons
+- discoverable SIVIQ profiles with compact blue `Follow` buttons
 
 Each discoverable profile row includes:
 
 - profile avatar
 - `@username`
 - blue verification badge when verified
-- CIVIQ code
+- SIVIQ code
 - compact deep-blue `Follow` button
 
 When the user taps `Follow`, the app calls `public.follow_profile(target_user_id)`, refreshes the current profile counts, and refreshes the Following screen data.
 
 ## Layout Lesson
 
-Do not place a globally themed full-width `FilledButton` directly inside `ListTile.trailing`. CIVIQ's filled buttons are full-width for form actions, which is correct in onboarding/profile forms but too large for list rows.
+Do not place a globally themed full-width `FilledButton` directly inside `ListTile.trailing`. SIVIQ's filled buttons are full-width for form actions, which is correct in onboarding/profile forms but too large for list rows.
 
 For row actions, wrap the button in a fixed-size box and override `minimumSize`, `padding`, and `tapTargetSize`.
 
@@ -101,12 +136,12 @@ This fixed the blank/white screen that happened when discoverable accounts rende
 
 ## Future Search Bar
 
-Next enhancement: add a search bar directly under `Follow your fellow CIVIQ users`.
+Next enhancement: add a search bar directly under `Follow your fellow SIVIQ users`.
 
 Planned behavior:
 
 - Search by username
-- Search by CIVIQ code
+- Search by SIVIQ code
 - Search by role label
 - Keep already-followed accounts excluded from discovery results
 - Keep the same compact row button design

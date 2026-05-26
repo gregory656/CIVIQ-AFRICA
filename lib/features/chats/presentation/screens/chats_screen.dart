@@ -129,6 +129,10 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
                             currentUserId: currentUserId,
                             currentUsername: currentProfile?.username,
                             currentAvatarUrl: currentProfile?.avatarUrl,
+                            onChanged: () {
+                              ref.invalidate(conversationsProvider);
+                              setState(() {});
+                            },
                           ),
                         ),
                       );
@@ -291,7 +295,7 @@ class _ChatsTopBar extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'CIVIQ Africa',
+                  'SIVIQ',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -326,7 +330,7 @@ class _ChatsTopBar extends StatelessWidget {
           TextField(
             controller: searchController,
             decoration: InputDecoration(
-              hintText: 'Search CIVIQ code/messages...',
+              hintText: 'Search SIVIQ code/messages...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: searchController.text.isEmpty
                   ? null
@@ -397,12 +401,14 @@ class _ConversationTile extends StatelessWidget {
     required this.currentUserId,
     required this.currentUsername,
     required this.currentAvatarUrl,
+    required this.onChanged,
   });
 
   final ChatConversation conversation;
   final String? currentUserId;
   final String? currentUsername;
   final String? currentAvatarUrl;
+  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -426,6 +432,7 @@ class _ConversationTile extends StatelessWidget {
     return InkWell(
       onTap: () =>
           context.push('/chats/${conversation.id}', extra: conversation),
+      onLongPress: () => _showConversationActions(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -506,6 +513,39 @@ class _ConversationTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showConversationActions(BuildContext context) async {
+    final action = await _showCenteredChatActions(
+      context,
+      title: conversation.displayTitle(currentUsername),
+      deleteLabel:
+          'Delete chat with ${conversation.displayTitle(currentUsername)}',
+      archived: conversation.isArchived,
+    );
+    if (action == null || !context.mounted) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final repository = container.read(chatRepositoryProvider);
+    try {
+      switch (action) {
+        case 'delete':
+          await repository.deleteConversationForMe(conversation.id);
+          break;
+        case 'archive':
+          await repository.updateConversationState(
+            conversationId: conversation.id,
+            isArchived: !conversation.isArchived,
+          );
+          break;
+      }
+      onChanged();
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update chat: $error')),
+        );
+      }
+    }
   }
 }
 
@@ -610,7 +650,7 @@ class _SearchResults extends ConsumerWidget {
       ),
       data: (items) {
         if (items.isEmpty) {
-          return const Center(child: Text('No CIVIQ profiles found.'));
+          return const Center(child: Text('No SIVIQ profiles found.'));
         }
         return ListView.separated(
           padding: const EdgeInsets.only(top: 4, bottom: 12),
@@ -676,7 +716,7 @@ class _UnreadBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        count > 99 ? '99+' : count.toString(),
+        count > 9 ? '9+' : count.toString(),
         style: const TextStyle(
           color: AppColors.white,
           fontSize: 12,
@@ -704,6 +744,92 @@ class _ConversationDeliveryIcon extends StatelessWidget {
   }
 }
 
+Future<String?> _showCenteredChatActions(
+  BuildContext context, {
+  required String title,
+  required String deleteLabel,
+  required bool archived,
+}) {
+  return showGeneralDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Chat actions',
+    barrierColor: AppColors.black.withValues(alpha: 0.22),
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (dialogContext, _, _) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Material(
+              color: AppColors.white,
+              elevation: 10,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.72,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: Icon(
+                        archived
+                            ? Icons.unarchive_outlined
+                            : Icons.archive_outlined,
+                      ),
+                      title: Text(archived ? 'Unarchive' : 'Archive'),
+                      onTap: () => Navigator.of(dialogContext).pop('archive'),
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.dangerRed,
+                      ),
+                      title: Text(
+                        deleteLabel,
+                        style: const TextStyle(color: AppColors.dangerRed),
+                      ),
+                      onTap: () => Navigator.of(dialogContext).pop('delete'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+        child: FadeTransition(opacity: curved, child: child),
+      );
+    },
+  );
+}
+
 class _EmptyChats extends StatelessWidget {
   const _EmptyChats({required this.filter});
 
@@ -712,7 +838,7 @@ class _EmptyChats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = filter == _ChatFilter.all
-        ? 'Search for a CIVIQ code or username to start a chat.'
+        ? 'Search for a SIVIQ code or username to start a chat.'
         : 'No ${filter.label.toLowerCase()} chats yet.';
     return Center(
       child: Padding(

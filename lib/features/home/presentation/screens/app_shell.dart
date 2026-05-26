@@ -10,6 +10,7 @@ import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/chats/data/repositories/chat_repository.dart';
+import '../../../../features/home/data/social_post_repository.dart';
 import '../../../../features/chats/presentation/screens/chats_screen.dart';
 import '../../../../features/home/presentation/screens/home_feed_screen.dart';
 import '../../../../features/locations/data/location_repository.dart';
@@ -111,7 +112,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                               ? Positioned(
                                   top: 11,
                                   right: 10,
-                                  child: _UnreadBadge(count: count),
+                                  child: IgnorePointer(
+                                    child: _UnreadBadge(count: count),
+                                  ),
                                 )
                               : const SizedBox.shrink(),
                           orElse: () => const SizedBox.shrink(),
@@ -153,6 +156,18 @@ class _AppShellState extends ConsumerState<AppShell> {
               ),
             ),
       body: _ShellBody(tab: tab, index: _index),
+      floatingActionButton: _index == 0
+          ? FloatingActionButton(
+              tooltip: 'Create post',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CreateSocialPostScreen(),
+                ),
+              ),
+              child: const Icon(Icons.add),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: (value) => setState(() => _index = value),
@@ -242,7 +257,7 @@ class _ProfileTab extends ConsumerWidget {
     );
     final displayName = profile?.username?.isNotEmpty == true
         ? '@${profile!.username}'
-        : 'CIVIQ Member';
+        : 'SIVIQ Member';
     final code = profile?.civiqCode?.isNotEmpty == true
         ? profile!.civiqCode!
         : 'Pending code';
@@ -595,6 +610,7 @@ class _DangerZoneActionsState extends ConsumerState<_DangerZoneActions> {
   void _clearUserScopedProviders(WidgetRef ref) {
     ref.invalidate(currentProfileProvider);
     ref.invalidate(conversationsProvider);
+    ref.invalidate(socialHomeFeedProvider);
     ref.invalidate(notificationsProvider);
     ref.invalidate(archivedNotificationsProvider);
     ref.invalidate(unreadNotificationCountProvider);
@@ -686,7 +702,7 @@ class _CodePanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'CIVIQ Code',
+                  'SIVIQ Code',
                   style: TextStyle(color: AppColors.grey, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
@@ -700,13 +716,13 @@ class _CodePanel extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: 'Copy CIVIQ code',
+            tooltip: 'Copy SIVIQ code',
             onPressed: code == 'Pending code'
                 ? null
                 : () {
                     Clipboard.setData(ClipboardData(text: code));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('CIVIQ code copied')),
+                      const SnackBar(content: Text('SIVIQ code copied')),
                     );
                   },
             icon: const Icon(Icons.copy_outlined),
@@ -805,11 +821,22 @@ class _UnreadBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 10,
-      height: 10,
-      decoration: const BoxDecoration(
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
         color: AppColors.dangerRed,
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: AppColors.white, width: 1.5),
+      ),
+      child: Text(
+        count > 9 ? '9+' : count.toString(),
+        style: const TextStyle(
+          color: AppColors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
       ),
     );
   }

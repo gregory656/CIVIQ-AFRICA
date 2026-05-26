@@ -18,7 +18,7 @@ class BrandMark extends StatelessWidget {
         if (showText) ...[
           const SizedBox(width: 10),
           Text(
-            'CIVIQ Africa',
+            'SIVIQ',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppColors.black,
               fontWeight: FontWeight.w800,

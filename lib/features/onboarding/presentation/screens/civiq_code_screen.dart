@@ -67,7 +67,7 @@ class _CiviqCodeScreenState extends ConsumerState<CiviqCodeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Your CIVIQ Code')),
+      appBar: AppBar(title: const Text('Your SIVIQ Code')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -103,7 +103,7 @@ class _CiviqCodeScreenState extends ConsumerState<CiviqCodeScreen> {
                     : () {
                         Clipboard.setData(ClipboardData(text: _code));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('CIVIQ code copied')),
+                          const SnackBar(content: Text('SIVIQ code copied')),
                         );
                       },
                 icon: const Icon(Icons.copy_outlined),

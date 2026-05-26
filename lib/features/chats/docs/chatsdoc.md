@@ -1,4 +1,4 @@
-# CIVIQ Africa Chat Architecture
+# SIVIQ Chat Architecture
 
 ## Domain Boundaries
 
@@ -10,13 +10,13 @@ Chats do not own profile editing, bio editing, account security, app-wide settin
 
 The Chats tab top bar contains:
 
-- CIVIQ Africa title
+- SIVIQ title
 - global chat search
 - chat menu with New Group, Archived Chats, Starred Messages, Privacy Shortcuts, and Chat Settings
 
 The tab menu intentionally excludes profile photo, bio, and edit-profile actions.
 
-Search supports CIVIQ code and username now. Conversation title, group, and message-content search are planned, but message search must use indexed/paginated queries rather than live scanning the full `messages` table.
+Search supports SIVIQ code and username now. Conversation title, group, and message-content search are planned, but message search must use indexed/paginated queries rather than live scanning the full `messages` table.
 
 ## Conversation Types
 

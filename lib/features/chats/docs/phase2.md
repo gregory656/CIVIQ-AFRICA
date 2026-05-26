@@ -40,7 +40,7 @@ Flutter:
 
 - `features/chats/` clean feature structure
 - Chats tab with All, Unread, Favorites, Groups filters
-- global chat profile search by CIVIQ code or username
+- global chat profile search by SIVIQ code or username
 - Saved Messages/self chat
 - direct conversation creation
 - realtime active-room refresh

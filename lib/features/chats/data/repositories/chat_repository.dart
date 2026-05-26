@@ -279,6 +279,7 @@ class ChatRepository {
   Future<void> sendMessage({
     required String conversationId,
     required String content,
+    String? replyToMessageId,
   }) async {
     await _client.rpc(
       'send_message',
@@ -286,7 +287,39 @@ class ChatRepository {
         'target_conversation_id': conversationId,
         'body': content,
         'target_message_type': 'text',
+        'target_reply_to_message_id': replyToMessageId,
       },
+    );
+  }
+
+  Future<void> editMessage({
+    required String messageId,
+    required String content,
+  }) async {
+    await _client.rpc(
+      'edit_message',
+      params: {'target_message_id': messageId, 'body': content},
+    );
+  }
+
+  Future<void> deleteMessageForEveryone(String messageId) async {
+    await _client.rpc(
+      'delete_message_for_everyone',
+      params: {'target_message_id': messageId},
+    );
+  }
+
+  Future<void> deleteMessageForMe(String messageId) async {
+    await _client.rpc(
+      'delete_message_for_me',
+      params: {'target_message_id': messageId},
+    );
+  }
+
+  Future<void> reportMessageSpam(String messageId) async {
+    await _client.rpc(
+      'report_message_spam',
+      params: {'target_message_id': messageId, 'report_reason': 'spam'},
     );
   }
 
@@ -320,5 +353,19 @@ class ChatRepository {
         .from('conversation_participants')
         .update(payload)
         .eq('conversation_id', conversationId);
+  }
+
+  Future<void> deleteConversationForMe(String conversationId) async {
+    await _client.rpc(
+      'delete_conversation_for_me',
+      params: {'target_conversation_id': conversationId},
+    );
+  }
+
+  Future<void> archiveConversationForMe(String conversationId) async {
+    await _client.rpc(
+      'archive_conversation_for_me',
+      params: {'target_conversation_id': conversationId},
+    );
   }
 }

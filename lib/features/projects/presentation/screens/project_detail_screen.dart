@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
@@ -13,94 +12,122 @@ class ProjectDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final imageUrl = project.imageUrl?.trim();
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text('Project Report')),
-      body: ListView(
-        children: [
-          if (project.imageUrl?.isNotEmpty == true)
-            CachedNetworkImage(
-              imageUrl: project.imageUrl!,
-              height: 240,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            )
-          else
-            Container(
-              height: 180,
-              color: AppColors.background,
-              child: const Icon(
-                Icons.image_not_supported_outlined,
-                size: 52,
-                color: AppColors.grey,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (hasImage)
+              SizedBox(
+                height: 320,
+                width: double.infinity,
+                child: Image.network(
+                  imageUrl,
+                  width: double.infinity,
+                  height: 320,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: AppColors.background,
+                      child: const Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: AppColors.background,
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      size: 52,
+                      color: AppColors.grey,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                height: 180,
+                color: AppColors.background,
+                child: const Icon(
+                  Icons.image_not_supported_outlined,
+                  size: 52,
+                  color: AppColors.grey,
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StatusBadge(type: project.projectType),
+                  const SizedBox(height: 10),
+                  Text(
+                    project.title,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    [
+                          project.countyName,
+                          project.subcountyName,
+                          project.locationName,
+                        ]
+                        .whereType<String>()
+                        .where((item) => item.isNotEmpty)
+                        .join(' - '),
+                    style: const TextStyle(
+                      color: AppColors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    project.description?.trim().isNotEmpty == true
+                        ? project.description!
+                        : 'No description provided.',
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      _VoteButton(
+                        icon: Icons.thumb_up_alt_outlined,
+                        count: project.approvalCount,
+                        label: 'Approve',
+                        color: AppColors.primaryGreen,
+                        onPressed: () => _vote(context, ref, true),
+                      ),
+                      const SizedBox(width: 10),
+                      _VoteButton(
+                        icon: Icons.thumb_down_alt_outlined,
+                        count: project.disapprovalCount,
+                        label: 'Disapprove',
+                        color: AppColors.dangerRed,
+                        onPressed: () => _vote(context, ref, false),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Share',
+                        onPressed: () => SharePlus.instance.share(
+                          ShareParams(text: '${project.title} on SIVIQ'),
+                        ),
+                        icon: const Icon(Icons.share_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Report',
+                        onPressed: () => _report(context, ref),
+                        icon: const Icon(Icons.flag_outlined),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _StatusBadge(type: project.projectType),
-                const SizedBox(height: 10),
-                Text(
-                  project.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  [
-                        project.countyName,
-                        project.subcountyName,
-                        project.locationName,
-                      ]
-                      .whereType<String>()
-                      .where((item) => item.isNotEmpty)
-                      .join(' - '),
-                  style: const TextStyle(
-                    color: AppColors.grey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  project.description?.trim().isNotEmpty == true
-                      ? project.description!
-                      : 'No description provided.',
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    _VoteButton(
-                      icon: Icons.thumb_up_alt_outlined,
-                      label: project.approvalCount.toString(),
-                      onPressed: () => _vote(context, ref, true),
-                    ),
-                    const SizedBox(width: 10),
-                    _VoteButton(
-                      icon: Icons.thumb_down_alt_outlined,
-                      label: project.disapprovalCount.toString(),
-                      onPressed: () => _vote(context, ref, false),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Share',
-                      onPressed: () => SharePlus.instance.share(
-                        ShareParams(text: '${project.title} on CIVIQ Africa'),
-                      ),
-                      icon: const Icon(Icons.share_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Report',
-                      onPressed: () => _report(context, ref),
-                      icon: const Icon(Icons.flag_outlined),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -160,20 +187,45 @@ class ProjectDetailScreen extends ConsumerWidget {
 class _VoteButton extends StatelessWidget {
   const _VoteButton({
     required this.icon,
+    required this.count,
     required this.label,
+    required this.color,
     required this.onPressed,
   });
 
   final IconData icon;
+  final int count;
   final String label;
+  final Color color;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
+    return OutlinedButton(
       onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
+      style: OutlinedButton.styleFrom(foregroundColor: color),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 4),
+              Text(count.toString(), style: TextStyle(color: color)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

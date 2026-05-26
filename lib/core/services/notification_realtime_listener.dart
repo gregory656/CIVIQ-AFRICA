@@ -8,6 +8,7 @@ import '../../features/notifications/data/notification_repository.dart';
 import '../../features/notifications/data/notification_settings_repository.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chats/data/repositories/chat_repository.dart';
+import '../../features/home/data/social_post_repository.dart';
 import '../../features/profile/data/profile_repository.dart';
 import '../../features/profile/data/security_repository.dart';
 import 'local_notification_service.dart';
@@ -50,6 +51,7 @@ class _NotificationRealtimeListenerState
           ref.invalidate(accountDeletionProvider);
           ref.invalidate(legalHistoryProvider);
           ref.invalidate(conversationsProvider);
+          ref.invalidate(socialHomeFeedProvider);
           _syncSubscription();
         });
     _syncSubscription();
@@ -90,13 +92,14 @@ class _NotificationRealtimeListenerState
     PostgresChangePayload payload,
   ) async {
     final record = payload.newRecord;
-    final title = record['title'] as String? ?? 'CIVIQ Africa';
+    final title = record['title'] as String? ?? 'SIVIQ';
     final body = record['body'] as String? ?? '';
     final notificationId = record['id']?.toString() ?? '';
 
     ref.invalidate(notificationsProvider);
     ref.invalidate(unreadNotificationCountProvider);
     ref.invalidate(conversationsProvider);
+    ref.invalidate(socialHomeFeedProvider);
 
     final userId = _userId;
     if (userId == null) return;

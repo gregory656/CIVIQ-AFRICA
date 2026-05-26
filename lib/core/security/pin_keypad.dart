@@ -5,7 +5,7 @@ import '../constants/app_colors.dart';
 class PinKeypad extends StatefulWidget {
   const PinKeypad({
     required this.onCompleted,
-    this.title = 'Enter CIVIQ PIN',
+    this.title = 'Enter SIVIQ PIN',
     this.errorText,
     this.onCancel,
     this.cancelLabel = 'Cancel',

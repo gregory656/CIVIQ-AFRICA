@@ -68,9 +68,9 @@ class _PrivacyVisibilityScreenState
                 ),
                 _SwitchTile(
                   icon: Icons.qr_code_2_outlined,
-                  title: 'Allow message requests via CIVIQ code',
+                  title: 'Allow message requests via SIVIQ code',
                   subtitle:
-                      'Lets people request contact using your CIVIQ code.',
+                      'Lets people request contact using your SIVIQ code.',
                   value: _allowMessageRequests!,
                   onChanged: (value) => _save(allowMessageRequests: value),
                 ),

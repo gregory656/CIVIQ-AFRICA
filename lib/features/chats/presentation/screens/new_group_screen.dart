@@ -73,7 +73,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
             controller: _searchController,
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
-              hintText: 'Search username or CIVIQ code',
+              hintText: 'Search username or SIVIQ code',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchController.text.isEmpty
                   ? null
@@ -110,7 +110,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
                         ? const Icon(Icons.person, size: 16)
                         : null,
                   ),
-                  label: Text(member.username ?? 'CIVIQ Member'),
+                  label: Text(member.username ?? 'SIVIQ Member'),
                   onDeleted: () => setState(() => _selected.remove(member.id)),
                 );
               },

@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     await admin.from('notifications').insert({
       user_id: userId,
       title: 'Data export requested',
-      body: 'Your CIVIQ Africa data export is ready. The download link expires in 1 hour.',
+      body: 'Your SIVIQ data export is ready. The download link expires in 1 hour.',
       category: 'security',
       is_read: false,
     });

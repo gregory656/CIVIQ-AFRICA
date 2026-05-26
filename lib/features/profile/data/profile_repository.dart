@@ -212,7 +212,7 @@ class ProfileRepository {
         .toList();
   }
 
-  Future<List<ProfileConnection>> discoverCiviqUsers(
+  Future<List<ProfileConnection>> discoverSiviqUsers(
     String currentUserId,
   ) async {
     final response = await _client.rpc('discover_civiq_profiles');
@@ -297,7 +297,7 @@ class ProfileRepository {
       return 'Use letters, numbers, and underscores only.';
     }
     if (isReservedUsername(normalized)) {
-      return 'This username is reserved by CIVIQ.';
+      return 'This username is reserved by SIVIQ.';
     }
     return null;
   }
@@ -327,8 +327,8 @@ class ProfileRepository {
 
   List<String> usernameSuggestions(String base) {
     final cleaned = base.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '');
-    final seed = cleaned.isEmpty ? 'CiviqUser' : cleaned;
-    return ['${seed}254', '${seed}_KE', '${seed}_CQ'];
+    final seed = cleaned.isEmpty ? 'SiviqUser' : cleaned;
+    return ['${seed}254', '${seed}_KE', '${seed}_SQ'];
   }
 
   String generateCiviqCode() {
@@ -338,7 +338,7 @@ class ProfileRepository {
       length,
       (_) => alphabet[random.nextInt(alphabet.length)],
     ).join();
-    return 'CQ-${chunk(4)}-${chunk(2)}';
+    return 'SQ-${chunk(4)}-${chunk(2)}';
   }
 }
 
@@ -353,7 +353,7 @@ const _reservedUsernames = {
   'admin',
   'administrator',
   'civiq',
-  'civiqafrica',
+  'siviq',
   'support',
   'help',
   'moderator',

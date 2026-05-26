@@ -30,7 +30,7 @@ final followingScreenDataProvider =
       });
       final discover = currentUserId == null
           ? <ProfileConnection>[]
-          : await repository.discoverCiviqUsers(currentUserId);
+          : await repository.discoverSiviqUsers(currentUserId);
       return FollowingScreenData(following: following, discover: discover);
     });
 
@@ -173,7 +173,7 @@ class _FollowingContent extends StatelessWidget {
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Following: ${data.following.length}  |  CIVIQ users: ${data.discover.length}',
+              'Following: ${data.following.length}  |  SIVIQ users: ${data.discover.length}',
               style: const TextStyle(
                 color: AppColors.grey,
                 fontSize: 12,
@@ -190,7 +190,7 @@ class _FollowingContent extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              'No other CIVIQ accounts are available yet.',
+              'No other SIVIQ accounts are available yet.',
               style: TextStyle(color: AppColors.grey),
             ),
           )
@@ -261,12 +261,12 @@ class _DiscoverHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Follow your fellow CIVIQ users',
+            'Follow your fellow SIVIQ users',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
           ),
           SizedBox(height: 3),
           Text(
-            'Browse all available CIVIQ profiles and follow the accounts you want to keep up with.',
+            'Browse all available SIVIQ profiles and follow the accounts you want to keep up with.',
             style: TextStyle(color: AppColors.grey),
           ),
         ],
@@ -301,7 +301,7 @@ class _ProfileConnectionTileState
     final account = widget.account;
     final username = account.username?.isNotEmpty == true
         ? '@${account.username}'
-        : 'CIVIQ Member';
+        : 'SIVIQ Member';
 
     return ListTile(
       leading: _ConnectionAvatar(url: account.avatarUrl),
@@ -354,7 +354,7 @@ class _ProfileConnectionTileState
   String _subtitleFor(ProfileConnection account) {
     final code = account.civiqCode?.isNotEmpty == true
         ? account.civiqCode!
-        : 'No CIVIQ code';
+        : 'No SIVIQ code';
     final role = account.roleLabel;
     if (role == null || role.isEmpty) return code;
     return '$role | $code';

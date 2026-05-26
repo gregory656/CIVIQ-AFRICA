@@ -38,7 +38,7 @@ class PublicProfileScreen extends ConsumerWidget {
                         child: Text(
                           profile.username?.isNotEmpty == true
                               ? '@${profile.username}'
-                              : 'CIVIQ Member',
+                              : 'SIVIQ Member',
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w800),

@@ -30,7 +30,7 @@ class _NotificationPermissionScreenState
             .createWelcomeNotifications(user.id);
         await LocalNotificationService.instance.show(
           id: 1001,
-          title: 'Welcome to CIVIQ Africa.',
+          title: 'Welcome to SIVIQ.',
           body:
               'Read our guidelines and help improve your community responsibly.',
         );

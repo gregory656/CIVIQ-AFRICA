@@ -15,7 +15,7 @@ class CiviqAfricaApp extends ConsumerWidget {
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'CIVIQ Africa',
+      title: 'SIVIQ',
       theme: AppTheme.light,
       routerConfig: router,
       builder: (context, child) => NotificationRealtimeListener(

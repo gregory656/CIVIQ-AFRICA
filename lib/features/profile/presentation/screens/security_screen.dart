@@ -174,14 +174,14 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   }
 
   Future<void> _setupPin() async {
-    final first = await _requestPin(title: 'Create CIVIQ PIN');
+    final first = await _requestPin(title: 'Create SIVIQ PIN');
     if (first == null) return;
     final error = ref.read(pinServiceProvider).validatePinPolicy(first);
     if (error != null) {
       _snack(error);
       return;
     }
-    final confirm = await _requestPin(title: 'Confirm CIVIQ PIN');
+    final confirm = await _requestPin(title: 'Confirm SIVIQ PIN');
     if (confirm == null) return;
     if (first != confirm) {
       _snack('PINs do not match.');
@@ -223,7 +223,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     }
     final ok = await ref
         .read(biometricServiceProvider)
-        .authenticate(reason: 'Enable biometrics for CIVIQ Africa');
+        .authenticate(reason: 'Enable biometrics for SIVIQ');
     if (!ok) return;
     await ref
         .read(secureStorageServiceProvider)
@@ -253,7 +253,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           .read(securityRepositoryProvider)
           .logSecurityEvent('password_reauthentication');
       await ref.read(pinServiceProvider).clearPin();
-      final newPin = await _requestPin(title: 'Create new CIVIQ PIN');
+      final newPin = await _requestPin(title: 'Create new SIVIQ PIN');
       if (newPin == null) {
         await _load();
         return;
@@ -264,7 +264,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         await _load();
         return;
       }
-      final confirm = await _requestPin(title: 'Confirm new CIVIQ PIN');
+      final confirm = await _requestPin(title: 'Confirm new SIVIQ PIN');
       if (confirm != newPin) {
         _snack('PINs do not match.');
         await _load();

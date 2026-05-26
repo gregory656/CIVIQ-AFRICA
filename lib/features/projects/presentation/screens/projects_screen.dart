@@ -4,9 +4,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/cloudinary_service.dart';
+import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../shared/models/kenya_location.dart';
@@ -21,7 +23,7 @@ class ProjectsScreen extends ConsumerWidget {
     final projects = ref.watch(projectsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CIVIQ Projects'),
+        title: const Text('SIVIQ Projects'),
         actions: [
           IconButton(
             tooltip: 'Create project',
@@ -58,105 +60,573 @@ class ProjectsScreen extends ConsumerWidget {
   }
 }
 
-class ProjectFeedCard extends ConsumerWidget {
+class ProjectFeedCard extends ConsumerStatefulWidget {
   const ProjectFeedCard({super.key, required this.project});
 
   final CiviqProject project;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ProjectDetailScreen(project: project),
-        ),
+  ConsumerState<ProjectFeedCard> createState() => _ProjectFeedCardState();
+}
+
+class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
+  @override
+  Widget build(BuildContext context) {
+    final project = widget.project;
+    final imageUrl = project.imageUrl?.trim();
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+        color: AppColors.white,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(8),
-          color: AppColors.white,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ProjectThumb(url: project.imageUrl),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    [
+                      project.countyName,
+                      project.subcountyName,
+                    ].whereType<String>().join(' - '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.grey,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                _CompactStatus(type: project.projectType),
+                const SizedBox(width: 6),
+                _VerificationBadge(status: project.verificationStatus),
+                IconButton(
+                  tooltip: 'Project actions',
+                  onPressed: _showProjectActions,
+                  icon: const Icon(Icons.more_horiz),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              project.title,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              project.description?.trim().isNotEmpty == true
+                  ? project.description!
+                  : 'No description provided.',
+              style: const TextStyle(fontSize: 14),
+            ),
+            if (hasImage) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  imageUrl,
+                  width: double.infinity,
+                  height: 250,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: double.infinity,
+                      height: 250,
+                      color: AppColors.background,
+                      child: const Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: double.infinity,
+                    height: 250,
+                    color: AppColors.background,
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: AppColors.grey,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _ProjectAction(
+                  icon: Icons.thumb_up_alt_outlined,
+                  count: project.approvalCount,
+                  label: 'Approve',
+                  color: AppColors.primaryGreen,
+                  onTap: () => _vote(true),
+                ),
+                const SizedBox(width: 10),
+                _ProjectAction(
+                  icon: Icons.thumb_down_alt_outlined,
+                  count: project.disapprovalCount,
+                  label: 'Disapprove',
+                  color: AppColors.dangerRed,
+                  onTap: () => _vote(false),
+                ),
+                const Spacer(),
+                _ProjectAction(
+                  icon: Icons.chat_bubble_outline,
+                  label: project.commentCount == 0
+                      ? 'Comment'
+                      : project.commentCount.toString(),
+                  onTap: _openComments,
+                ),
+              ],
+            ),
+            const Divider(height: 18),
+            _OpenProjectCommentBox(onTap: _openComments),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openDetail() {
+    final project = widget.project;
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectDetailScreen(project: project),
+      ),
+    );
+  }
+
+  Future<void> _showProjectActions() async {
+    final action = await _showCenteredProjectActions(context);
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'open':
+        await Future<void>.delayed(const Duration(milliseconds: 260));
+        if (mounted) _openDetail();
+        break;
+      case 'share':
+        await SharePlus.instance.share(
+          ShareParams(text: '${widget.project.title} on SIVIQ'),
+        );
+        break;
+      case 'report':
+        await _reportProject();
+        break;
+    }
+  }
+
+  Future<void> _reportProject() async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report project'),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Reason'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || reason.isEmpty) return;
+    await ref
+        .read(projectRepositoryProvider)
+        .reportProject(widget.project.id, reason);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+  }
+
+  Future<void> _vote(bool isApproval) async {
+    await ref
+        .read(projectRepositoryProvider)
+        .voteProject(widget.project.id, isApproval);
+    ref.invalidate(projectsProvider);
+  }
+
+  Future<void> _openComments() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ProjectCommentsSheet(project: widget.project),
+    );
+    ref.invalidate(projectsProvider);
+  }
+}
+
+class _ProjectAction extends StatelessWidget {
+  const _ProjectAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.count,
+    this.color = AppColors.black,
+  });
+
+  final IconData icon;
+  final int? count;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = count;
+    if (value == null) {
+      return TextButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 19, color: color),
+        label: Text(label, style: TextStyle(color: color)),
+        style: TextButton.styleFrom(
+          foregroundColor: color,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+        ),
+      );
+    }
+
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 19, color: color),
+              const SizedBox(width: 4),
+              Text(value.toString(), style: TextStyle(color: color)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerificationBadge extends StatelessWidget {
+  const _VerificationBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final verified =
+        status == 'community_verified' || status == 'officially_verified';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: verified
+            ? AppColors.primaryGreen.withValues(alpha: 0.12)
+            : AppColors.background,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        status.replaceAll('_', ' '),
+        style: TextStyle(
+          color: verified ? AppColors.primaryGreen : AppColors.grey,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+Future<String?> _showCenteredProjectActions(BuildContext context) {
+  return showGeneralDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Project actions',
+    barrierColor: AppColors.black.withValues(alpha: 0.22),
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (dialogContext, _, _) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Material(
+              color: AppColors.white,
+              elevation: 10,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.72,
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            project.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(18, 16, 18, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Project actions',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
                           ),
                         ),
-                        _CompactStatus(type: project.projectType),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      [
-                        project.countyName,
-                        project.subcountyName,
-                      ].whereType<String>().join(' - '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.grey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      project.description?.trim().isNotEmpty == true
-                          ? project.description!
-                          : 'No description provided.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.open_in_full_outlined),
+                      title: const Text('Open project'),
+                      onTap: () => Navigator.of(dialogContext).pop('open'),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.thumb_up_alt_outlined,
-                          size: 16,
-                          color: AppColors.primaryGreen,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(project.approvalCount.toString()),
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.thumb_down_alt_outlined,
-                          size: 16,
-                          color: AppColors.dangerRed,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(project.disapprovalCount.toString()),
-                        const Spacer(),
-                        Text(
-                          project.verificationStatus.replaceAll('_', ' '),
-                          style: const TextStyle(
-                            color: AppColors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                    ListTile(
+                      leading: const Icon(Icons.ios_share_outlined),
+                      title: const Text('Share'),
+                      onTap: () => Navigator.of(dialogContext).pop('share'),
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.flag_outlined,
+                        color: AppColors.dangerRed,
+                      ),
+                      title: const Text(
+                        'Report',
+                        style: TextStyle(color: AppColors.dangerRed),
+                      ),
+                      onTap: () => Navigator.of(dialogContext).pop('report'),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+        child: FadeTransition(opacity: curved, child: child),
+      );
+    },
+  );
+}
+
+class _OpenProjectCommentBox extends StatelessWidget {
+  const _OpenProjectCommentBox({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Write a comment...',
+                style: TextStyle(color: AppColors.grey),
+              ),
+            ),
+            Icon(Icons.chat_bubble_outline, size: 18, color: AppColors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ProjectCommentsSheet extends ConsumerStatefulWidget {
+  const ProjectCommentsSheet({super.key, required this.project});
+
+  final CiviqProject project;
+
+  @override
+  ConsumerState<ProjectCommentsSheet> createState() =>
+      _ProjectCommentsSheetState();
+}
+
+class _ProjectCommentsSheetState extends ConsumerState<ProjectCommentsSheet> {
+  final _controller = TextEditingController();
+  String? _replyToCommentId;
+  String? _replyToName;
+  bool _loading = true;
+  bool _sending = false;
+  List<ProjectComment> _comments = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final comments = await ref
+        .read(projectRepositoryProvider)
+        .fetchComments(widget.project.id);
+    if (!mounted) return;
+    setState(() {
+      _comments = comments;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.82,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Project comments',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh comments',
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _comments.isEmpty
+                  ? const Center(child: Text('No comments yet.'))
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                      children: _threadedComments()
+                          .map(
+                            (item) => _ProjectCommentTile(
+                              comment: item.comment,
+                              indent: item.depth * 18,
+                              onReply: () => _replyTo(item.comment),
+                              onChanged: _load,
+                            ),
+                          )
+                          .toList(),
+                    ),
+            ),
+            if (_replyToName != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
+                color: AppColors.background,
+                child: Row(
+                  children: [
+                    Expanded(child: Text('Replying to $_replyToName')),
+                    IconButton(
+                      tooltip: 'Cancel reply',
+                      onPressed: () => setState(() {
+                        _replyToCommentId = null;
+                        _replyToName = null;
+                      }),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              child: TextField(
+                controller: _controller,
+                minLines: 1,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: _replyToName == null
+                      ? 'Write a comment...'
+                      : 'Write a reply...',
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: IconButton(
+                    tooltip: 'Send',
+                    onPressed: _sending ? null : _send,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_outlined),
+                  ),
                 ),
               ),
             ),
@@ -165,6 +635,352 @@ class ProjectFeedCard extends ConsumerWidget {
       ),
     );
   }
+
+  List<_ThreadedProjectComment> _threadedComments() {
+    final byParent = <String?, List<ProjectComment>>{};
+    for (final comment in _comments) {
+      byParent.putIfAbsent(comment.parentCommentId, () => []).add(comment);
+    }
+    final result = <_ThreadedProjectComment>[];
+    void visit(String? parentId, int depth) {
+      for (final comment in byParent[parentId] ?? const <ProjectComment>[]) {
+        result.add(_ThreadedProjectComment(comment, depth));
+        visit(comment.id, depth + 1);
+      }
+    }
+
+    visit(null, 0);
+    return result;
+  }
+
+  void _replyTo(ProjectComment comment) {
+    setState(() {
+      _replyToCommentId = comment.id;
+      _replyToName = comment.displayName;
+    });
+  }
+
+  Future<void> _send() async {
+    final body = _controller.text.trim();
+    if (body.isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .addComment(
+            widget.project.id,
+            body,
+            parentCommentId: _replyToCommentId,
+          );
+      _controller.clear();
+      _replyToCommentId = null;
+      _replyToName = null;
+      await _load();
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+}
+
+class _ThreadedProjectComment {
+  const _ThreadedProjectComment(this.comment, this.depth);
+
+  final ProjectComment comment;
+  final int depth;
+}
+
+class _ProjectCommentTile extends ConsumerWidget {
+  const _ProjectCommentTile({
+    required this.comment,
+    required this.indent,
+    required this.onReply,
+    required this.onChanged,
+  });
+
+  final ProjectComment comment;
+  final double indent;
+  final VoidCallback onReply;
+  final Future<void> Function() onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentUserId = ref.watch(currentAuthUserIdProvider);
+    final isOwner = currentUserId != null && currentUserId == comment.authorId;
+    return Padding(
+      padding: EdgeInsets.only(left: indent, bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SmallAvatar(url: comment.authorAvatarUrl),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onLongPress: () => _showCommentActions(context, ref, isOwner),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                comment.displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _projectTimeAgo(comment.createdAt),
+                              style: const TextStyle(
+                                color: AppColors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(comment.body),
+                      ],
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        await ref
+                            .read(projectRepositoryProvider)
+                            .toggleCommentLike(comment.id);
+                        await onChanged();
+                      },
+                      icon: Icon(
+                        comment.viewerHasLiked
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        size: 16,
+                      ),
+                      label: Text(comment.likeCount.toString()),
+                    ),
+                    TextButton(onPressed: onReply, child: const Text('Reply')),
+                    IconButton(
+                      tooltip: 'Report',
+                      onPressed: () async {
+                        await ref
+                            .read(projectRepositoryProvider)
+                            .reportComment(comment.id);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Comment reported')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.flag_outlined, size: 18),
+                    ),
+                    if (isOwner)
+                      PopupMenuButton<String>(
+                        tooltip: 'Comment actions',
+                        onSelected: (value) async {
+                          if (value == 'edit') {
+                            await _editComment(context, ref);
+                          } else if (value == 'delete') {
+                            await ref
+                                .read(projectRepositoryProvider)
+                                .deleteComment(comment.id);
+                          }
+                          await onChanged();
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          PopupMenuItem(value: 'delete', child: Text('Delete')),
+                        ],
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editComment(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController(text: comment.body);
+    final body = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit comment'),
+        content: TextField(controller: controller, minLines: 3, maxLines: 5),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (body == null || body.isEmpty) return;
+    await ref.read(projectRepositoryProvider).updateComment(comment.id, body);
+  }
+
+  Future<void> _showCommentActions(
+    BuildContext context,
+    WidgetRef ref,
+    bool isOwner,
+  ) async {
+    final action = await _showCenteredProjectCommentActions(
+      context,
+      isOwner: isOwner,
+    );
+    if (action == null) return;
+    if (!context.mounted) return;
+    switch (action) {
+      case 'reply':
+        onReply();
+        break;
+      case 'report':
+        await ref.read(projectRepositoryProvider).reportComment(comment.id);
+        break;
+      case 'edit':
+        await _editComment(context, ref);
+        break;
+      case 'delete':
+        await ref.read(projectRepositoryProvider).deleteComment(comment.id);
+        break;
+    }
+    await onChanged();
+  }
+}
+
+Future<String?> _showCenteredProjectCommentActions(
+  BuildContext context, {
+  required bool isOwner,
+}) {
+  return showGeneralDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Comment actions',
+    barrierColor: AppColors.black.withValues(alpha: 0.22),
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (dialogContext, _, _) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Material(
+              color: AppColors.white,
+              elevation: 10,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.72,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.reply),
+                      title: const Text('Reply'),
+                      onTap: () => Navigator.of(dialogContext).pop('reply'),
+                    ),
+                    if (isOwner)
+                      ListTile(
+                        leading: const Icon(Icons.edit_outlined),
+                        title: const Text('Edit'),
+                        onTap: () => Navigator.of(dialogContext).pop('edit'),
+                      ),
+                    if (isOwner)
+                      ListTile(
+                        leading: const Icon(
+                          Icons.delete_outline,
+                          color: AppColors.dangerRed,
+                        ),
+                        title: const Text(
+                          'Delete',
+                          style: TextStyle(color: AppColors.dangerRed),
+                        ),
+                        onTap: () => Navigator.of(dialogContext).pop('delete'),
+                      )
+                    else
+                      ListTile(
+                        leading: const Icon(
+                          Icons.report_gmailerrorred_outlined,
+                          color: AppColors.dangerRed,
+                        ),
+                        title: const Text(
+                          'Report spam',
+                          style: TextStyle(color: AppColors.dangerRed),
+                        ),
+                        onTap: () => Navigator.of(dialogContext).pop('report'),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+        child: FadeTransition(opacity: curved, child: child),
+      );
+    },
+  );
+}
+
+class _SmallAvatar extends StatelessWidget {
+  const _SmallAvatar({this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url == null || url!.isEmpty) {
+      return const CircleAvatar(
+        radius: 18,
+        backgroundColor: AppColors.border,
+        child: Icon(Icons.person_outline, size: 18),
+      );
+    }
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: url!,
+        width: 36,
+        height: 36,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+}
+
+String _projectTimeAgo(DateTime value) {
+  final diff = DateTime.now().difference(value.toLocal());
+  if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${value.day}/${value.month}/${value.year}';
 }
 
 class CreateProjectScreen extends ConsumerStatefulWidget {
@@ -362,7 +1178,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
       if (_image != null) {
         imageUrl = await ref
             .read(cloudinaryServiceProvider)
-            .uploadMedia(File(_image!.path), folder: 'civiq/projects');
+            .uploadMedia(File(_image!.path), folder: 'siviq/projects');
       }
       await ref
           .read(projectRepositoryProvider)
@@ -475,30 +1291,6 @@ class _ReadonlyPicker extends StatelessWidget {
         suffixIcon: const Icon(Icons.expand_more),
       ),
       onTap: onTap,
-    );
-  }
-}
-
-class _ProjectThumb extends StatelessWidget {
-  const _ProjectThumb({this.url});
-
-  final String? url;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url == null || url!.isEmpty) {
-      return Container(
-        width: 92,
-        height: 132,
-        color: AppColors.background,
-        child: const Icon(Icons.image_outlined, color: AppColors.grey),
-      );
-    }
-    return CachedNetworkImage(
-      imageUrl: url!,
-      width: 92,
-      height: 132,
-      fit: BoxFit.cover,
     );
   }
 }

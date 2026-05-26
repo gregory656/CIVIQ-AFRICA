@@ -80,7 +80,7 @@ class ChatConversation {
       return title?.isNotEmpty == true ? title! : 'Group chat';
     }
     final username = peerUsername;
-    return username?.isNotEmpty == true ? '@$username' : 'CIVIQ Member';
+    return username?.isNotEmpty == true ? '@$username' : 'SIVIQ Member';
   }
 
   String displaySubtitle(String? currentUsername) {
@@ -167,7 +167,7 @@ class GroupMember {
 
   String get displayName {
     final value = username;
-    return value?.isNotEmpty == true ? '@$value' : 'CIVIQ Member';
+    return value?.isNotEmpty == true ? '@$value' : 'SIVIQ Member';
   }
 
   factory GroupMember.fromJson(Map<String, dynamic> json) {
@@ -197,6 +197,10 @@ class ChatMessage {
     this.content,
     this.mediaUrl,
     this.replyToMessageId,
+    this.replyToContent,
+    this.replyToSenderId,
+    this.replyToSenderUsername,
+    this.editedAt,
     this.deletedAt,
     this.senderUsername,
     this.senderAvatarUrl,
@@ -209,7 +213,11 @@ class ChatMessage {
   final String? content;
   final String? mediaUrl;
   final String? replyToMessageId;
+  final String? replyToContent;
+  final String? replyToSenderId;
+  final String? replyToSenderUsername;
   final bool isEdited;
+  final DateTime? editedAt;
   final DateTime createdAt;
   final DateTime? deletedAt;
   final String? senderUsername;
@@ -234,7 +242,11 @@ class ChatMessage {
       content: json['content'] as String?,
       mediaUrl: json['media_url'] as String?,
       replyToMessageId: json['reply_to_message_id'] as String?,
+      replyToContent: json['reply_to_content'] as String?,
+      replyToSenderId: json['reply_to_sender_id'] as String?,
+      replyToSenderUsername: json['reply_to_sender_username'] as String?,
       isEdited: json['is_edited'] as bool? ?? false,
+      editedAt: json['edited_at'] == null ? null : _date(json['edited_at']),
       createdAt: _date(json['created_at']),
       deletedAt: json['deleted_at'] == null ? null : _date(json['deleted_at']),
       senderUsername: json['sender_username'] as String?,
@@ -265,7 +277,7 @@ class ChatProfileResult {
 
   String get displayName {
     final value = username;
-    return value?.isNotEmpty == true ? '@$value' : 'CIVIQ Member';
+    return value?.isNotEmpty == true ? '@$value' : 'SIVIQ Member';
   }
 
   factory ChatProfileResult.fromJson(Map<String, dynamic> json) {

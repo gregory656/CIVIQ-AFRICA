@@ -37,6 +37,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   Timer? _typingThrottle;
   Timer? _pendingRetryTimer;
   bool _sending = false;
+  ChatMessage? _replyToMessage;
+  ChatMessage? _editingMessage;
 
   @override
   void initState() {
@@ -276,7 +278,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                           message: message,
                           currentUserId: currentUserId,
                           showSender: groupChat,
-                          onFavorite: () => _toggleFavorite(message.id),
+                          onReply: () => _startReply(message),
+                          onLongPress: () => _showMessageActions(
+                            message,
+                            groupChat: groupChat,
+                          ),
                         ),
                         _PendingChatMessage pending => _PendingMessageBubble(
                           message: pending,
@@ -294,6 +300,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
               onChanged: (_) => _sendTyping(),
               onSend: _sendMessage,
               onFutureAction: _comingSoon,
+              replyTo: _replyToMessage,
+              editingMessage: _editingMessage,
+              onCancelContext: _clearComposerContext,
             ),
           ],
         ),
@@ -393,16 +402,42 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _sending) return;
+    final editing = _editingMessage;
+    if (editing != null) {
+      setState(() => _sending = true);
+      try {
+        await ref
+            .read(chatRepositoryProvider)
+            .editMessage(messageId: editing.id, content: text);
+        _messageController.clear();
+        _clearComposerContext();
+        ref.invalidate(chatMessagesProvider(widget.conversationId));
+        ref.invalidate(conversationsProvider);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not edit message: $error')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _sending = false);
+      }
+      return;
+    }
     final pending = _PendingChatMessage(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       content: text,
       createdAt: DateTime.now(),
+      replyToMessageId: _replyToMessage?.id,
+      replyToContent: _replyToMessage?.content,
+      replyToSenderUsername: _replyToMessage?.senderUsername,
     );
     setState(() {
       _sending = true;
       _pendingMessages.add(pending);
     });
     _messageController.clear();
+    _clearComposerContext();
     await _sendPendingMessage(pending);
   }
 
@@ -418,6 +453,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           .sendMessage(
             conversationId: widget.conversationId,
             content: pending.content,
+            replyToMessageId: pending.replyToMessageId,
           );
       ref.invalidate(chatMessagesProvider(widget.conversationId));
       ref.invalidate(conversationsProvider);
@@ -453,9 +489,124 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
-  Future<void> _toggleFavorite(String messageId) async {
-    await ref.read(chatRepositoryProvider).toggleFavoriteMessage(messageId);
-    ref.invalidate(chatMessagesProvider(widget.conversationId));
+  void _startReply(ChatMessage message) {
+    if (message.deletedAt != null) return;
+    setState(() {
+      _replyToMessage = message;
+      _editingMessage = null;
+    });
+  }
+
+  void _startEdit(ChatMessage message) {
+    setState(() {
+      _editingMessage = message;
+      _replyToMessage = null;
+      _messageController.text = message.content ?? '';
+      _messageController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _messageController.text.length),
+      );
+    });
+  }
+
+  void _clearComposerContext() {
+    if (!mounted) return;
+    setState(() {
+      _replyToMessage = null;
+      _editingMessage = null;
+    });
+  }
+
+  Future<void> _showMessageActions(
+    ChatMessage message, {
+    required bool groupChat,
+  }) async {
+    if (message.deletedAt != null) return;
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    final mine = message.senderId == currentUserId;
+    final canEdit =
+        mine &&
+        DateTime.now().difference(message.createdAt.toLocal()).inMinutes < 5;
+    final action = await _showCenteredActionSheet(
+      context,
+      title: mine ? 'Your message' : _senderLabel(message),
+      actions: [
+        _CenteredAction('reply', Icons.reply, 'Reply'),
+        if (mine && canEdit)
+          _CenteredAction('edit', Icons.edit_outlined, 'Edit'),
+        if (mine && !canEdit)
+          _CenteredAction(
+            'edit_expired',
+            Icons.lock_clock_outlined,
+            'Edit expired',
+          ),
+        _CenteredAction('favorite', Icons.star_border, 'Star'),
+        _CenteredAction(
+          'delete_me',
+          Icons.delete_sweep_outlined,
+          'Delete for me',
+        ),
+        if (mine)
+          _CenteredAction(
+            'delete_all',
+            Icons.delete_outline,
+            groupChat ? 'Delete for everyone' : 'Delete for everyone',
+            danger: true,
+          ),
+        if (!mine)
+          _CenteredAction(
+            'report',
+            Icons.report_gmailerrorred_outlined,
+            'Report spam',
+            danger: true,
+          ),
+      ],
+    );
+    if (action == null) return;
+    final repository = ref.read(chatRepositoryProvider);
+    try {
+      switch (action) {
+        case 'reply':
+          _startReply(message);
+          break;
+        case 'edit':
+          _startEdit(message);
+          break;
+        case 'favorite':
+          await repository.toggleFavoriteMessage(message.id);
+          break;
+        case 'delete_me':
+          await repository.deleteMessageForMe(message.id);
+          break;
+        case 'delete_all':
+          await repository.deleteMessageForEveryone(message.id);
+          break;
+        case 'report':
+          await repository.reportMessageSpam(message.id);
+          break;
+        case 'edit_expired':
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Messages can only be edited for 5 minutes.'),
+              ),
+            );
+          }
+          break;
+      }
+      ref.invalidate(chatMessagesProvider(widget.conversationId));
+      ref.invalidate(conversationsProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Action failed: $error')));
+      }
+    }
+  }
+
+  String _senderLabel(ChatMessage message) {
+    final username = message.senderUsername;
+    return username?.isNotEmpty == true ? '@$username' : 'Message';
   }
 
   void _handleRoomMenu(String value) {
@@ -516,13 +667,15 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.currentUserId,
     required this.showSender,
-    required this.onFavorite,
+    required this.onReply,
+    required this.onLongPress,
   });
 
   final ChatMessage message;
   final String? currentUserId;
   final bool showSender;
-  final VoidCallback onFavorite;
+  final VoidCallback onReply;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -535,106 +688,140 @@ class _MessageBubble extends StatelessWidget {
         : AppColors.grey;
     final senderName = message.senderUsername;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      child: Row(
-        mainAxisAlignment: mine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        children: [
-          if (showSender && !mine) ...[
-            ChatAvatar(imageUrl: message.senderAvatarUrl, radius: 14),
-            const SizedBox(width: 6),
-          ],
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width * 0.76,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: _bubbleRadius(mine),
-                onLongPress: onFavorite,
-                child: Ink(
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: _bubbleRadius(mine),
-                    border: mine
-                        ? null
-                        : Border.all(
-                            color: AppColors.border.withValues(alpha: 0.8),
-                          ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.black.withValues(alpha: 0.05),
-                        blurRadius: 7,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(14, 9, 10, 7),
-                  child: Column(
-                    crossAxisAlignment: mine
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (showSender && !mine && senderName?.isNotEmpty == true)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Text(
-                            '@$senderName',
-                            style: const TextStyle(
-                              color: AppColors.primaryGreen,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
+    return Dismissible(
+      key: ValueKey('message-${message.id}'),
+      direction: DismissDirection.startToEnd,
+      confirmDismiss: (_) async {
+        onReply();
+        return false;
+      },
+      background: const Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: EdgeInsets.only(left: 18),
+          child: Icon(Icons.reply, color: AppColors.primaryGreen),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          mainAxisAlignment: mine
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            if (showSender && !mine) ...[
+              ChatAvatar(imageUrl: message.senderAvatarUrl, radius: 14),
+              const SizedBox(width: 6),
+            ],
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.76,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: _bubbleRadius(mine),
+                  onLongPress: onLongPress,
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: _bubbleRadius(mine),
+                      border: mine
+                          ? null
+                          : Border.all(
+                              color: AppColors.border.withValues(alpha: 0.8),
                             ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.black.withValues(alpha: 0.05),
+                          blurRadius: 7,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.fromLTRB(14, 9, 10, 7),
+                    child: Column(
+                      crossAxisAlignment: mine
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showSender &&
+                            !mine &&
+                            senderName?.isNotEmpty == true)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Text(
+                              '@$senderName',
+                              style: const TextStyle(
+                                color: AppColors.primaryGreen,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        if (message.replyToMessageId != null)
+                          _ReplyPreview(
+                            senderUsername: message.replyToSenderUsername,
+                            content: message.replyToContent,
+                            mine: mine,
+                          ),
+                        Text(
+                          message.deletedAt == null
+                              ? message.content ?? ''
+                              : 'Message deleted',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 15.5,
+                            height: 1.3,
                           ),
                         ),
-                      Text(
-                        message.deletedAt == null
-                            ? message.content ?? ''
-                            : 'Message deleted',
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 15.5,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (message.isFavorite)
-                            Icon(
-                              Icons.star,
-                              size: 13,
-                              color: mine
-                                  ? AppColors.white.withValues(alpha: 0.9)
-                                  : AppColors.warning,
+                        const SizedBox(height: 5),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (message.isFavorite)
+                              Icon(
+                                Icons.star,
+                                size: 13,
+                                color: mine
+                                    ? AppColors.white.withValues(alpha: 0.9)
+                                    : AppColors.warning,
+                              ),
+                            if (message.isFavorite) const SizedBox(width: 4),
+                            if (message.isEdited) ...[
+                              Text(
+                                'edited',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: metaColor,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              _time(message.createdAt),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: metaColor,
+                              ),
                             ),
-                          if (message.isFavorite) const SizedBox(width: 4),
-                          Text(
-                            _time(message.createdAt),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: metaColor,
-                            ),
-                          ),
-                          if (mine) ...[
-                            const SizedBox(width: 4),
-                            _DeliveryIcon(state: delivery),
+                            if (mine) ...[
+                              const SizedBox(width: 4),
+                              _DeliveryIcon(state: delivery),
+                            ],
                           ],
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -665,11 +852,17 @@ class _PendingChatMessage {
     required this.id,
     required this.content,
     required this.createdAt,
+    this.replyToMessageId,
+    this.replyToContent,
+    this.replyToSenderUsername,
   });
 
   final String id;
   final String content;
   final DateTime createdAt;
+  final String? replyToMessageId;
+  final String? replyToContent;
+  final String? replyToSenderUsername;
 }
 
 class _PendingMessageBubble extends StatelessWidget {
@@ -711,6 +904,12 @@ class _PendingMessageBubble extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (message.replyToMessageId != null)
+                      _ReplyPreview(
+                        senderUsername: message.replyToSenderUsername,
+                        content: message.replyToContent,
+                        mine: true,
+                      ),
                     Text(
                       message.content,
                       style: const TextStyle(
@@ -750,6 +949,66 @@ class _PendingMessageBubble extends StatelessWidget {
   }
 }
 
+class _ReplyPreview extends StatelessWidget {
+  const _ReplyPreview({
+    required this.senderUsername,
+    required this.content,
+    required this.mine,
+  });
+
+  final String? senderUsername;
+  final String? content;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = mine ? AppColors.white : AppColors.primaryGreen;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: mine
+            ? AppColors.black.withValues(alpha: 0.12)
+            : AppColors.primaryGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: fg, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            senderUsername?.isNotEmpty == true
+                ? '@$senderUsername'
+                : 'Replied message',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: fg,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            content?.isNotEmpty == true ? content! : 'Message',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: mine
+                  ? AppColors.white.withValues(alpha: 0.86)
+                  : AppColors.black,
+              fontSize: 12,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MessageComposer extends StatelessWidget {
   const _MessageComposer({
     required this.controller,
@@ -757,6 +1016,9 @@ class _MessageComposer extends StatelessWidget {
     required this.onChanged,
     required this.onSend,
     required this.onFutureAction,
+    required this.replyTo,
+    required this.editingMessage,
+    required this.onCancelContext,
   });
 
   final TextEditingController controller;
@@ -764,6 +1026,9 @@ class _MessageComposer extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
   final ValueChanged<String> onFutureAction;
+  final ChatMessage? replyTo;
+  final ChatMessage? editingMessage;
+  final VoidCallback onCancelContext;
 
   @override
   Widget build(BuildContext context) {
@@ -772,73 +1037,143 @@ class _MessageComposer extends StatelessWidget {
       elevation: 2,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              IconButton(
-                tooltip: 'More message tools',
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => onFutureAction('Message tools'),
-                icon: const Icon(Icons.add),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (replyTo != null || editingMessage != null)
+              _ComposerContextBar(
+                message: replyTo ?? editingMessage!,
+                editing: editingMessage != null,
+                onCancel: onCancelContext,
               ),
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(color: AppColors.border),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    tooltip: 'More message tools',
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onFutureAction('Message tools'),
+                    icon: const Icon(Icons.add),
                   ),
-                  child: TextField(
-                    controller: controller,
-                    onChanged: onChanged,
-                    minLines: 1,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      hintText: 'Message...',
-                      isDense: true,
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: TextField(
+                        controller: controller,
+                        onChanged: onChanged,
+                        minLines: 1,
+                        maxLines: 5,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          hintText: 'Message...',
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  IconButton(
+                    tooltip: 'Voice note',
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onFutureAction('Voice notes'),
+                    icon: const Icon(Icons.mic_none),
+                  ),
+                  IconButton(
+                    tooltip: 'Attach',
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onFutureAction('Attachments'),
+                    icon: const Icon(Icons.attach_file),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    tooltip: 'Send',
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    onPressed: sending ? null : onSend,
+                    icon: sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                  ),
+                ],
               ),
-              IconButton(
-                tooltip: 'Voice note',
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => onFutureAction('Voice notes'),
-                icon: const Icon(Icons.mic_none),
-              ),
-              IconButton(
-                tooltip: 'Attach',
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => onFutureAction('Attachments'),
-                icon: const Icon(Icons.attach_file),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: 'Send',
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                onPressed: sending ? null : onSend,
-                icon: sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _ComposerContextBar extends StatelessWidget {
+  const _ComposerContextBar({
+    required this.message,
+    required this.editing,
+    required this.onCancel,
+  });
+
+  final ChatMessage message;
+  final bool editing;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      color: AppColors.background,
+      child: Row(
+        children: [
+          Icon(
+            editing ? Icons.edit_outlined : Icons.reply,
+            size: 18,
+            color: AppColors.primaryGreen,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              editing
+                  ? 'Editing message'
+                  : 'Replying to ${message.senderUsername?.isNotEmpty == true ? '@${message.senderUsername}' : 'message'}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cancel',
+            visualDensity: VisualDensity.compact,
+            onPressed: onCancel,
+            icon: const Icon(Icons.close),
+          ),
+        ],
       ),
     );
   }
@@ -898,4 +1233,102 @@ class _DeliveryIcon extends StatelessWidget {
       color: read ? _seenBlue : AppColors.white.withValues(alpha: 0.82),
     );
   }
+}
+
+class _CenteredAction {
+  const _CenteredAction(
+    this.value,
+    this.icon,
+    this.label, {
+    this.danger = false,
+  });
+
+  final String value;
+  final IconData icon;
+  final String label;
+  final bool danger;
+}
+
+Future<String?> _showCenteredActionSheet(
+  BuildContext context, {
+  required String title,
+  required List<_CenteredAction> actions,
+}) {
+  return showGeneralDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: title,
+    barrierColor: AppColors.black.withValues(alpha: 0.22),
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (dialogContext, _, _) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Material(
+              color: AppColors.white,
+              elevation: 10,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.72,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    for (final action in actions)
+                      ListTile(
+                        leading: Icon(
+                          action.icon,
+                          color: action.danger
+                              ? AppColors.dangerRed
+                              : AppColors.black,
+                        ),
+                        title: Text(
+                          action.label,
+                          style: TextStyle(
+                            color: action.danger
+                                ? AppColors.dangerRed
+                                : AppColors.black,
+                          ),
+                        ),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop(action.value),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+        child: FadeTransition(opacity: curved, child: child),
+      );
+    },
+  );
 }

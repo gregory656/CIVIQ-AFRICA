@@ -93,7 +93,7 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
                   ),
                   const SizedBox(height: 18),
                   PinKeypad(
-                    title: 'Enter CIVIQ PIN',
+                    title: 'Enter SIVIQ PIN',
                     errorText: _error,
                     resetToken: _resetToken,
                     onCompleted: _unlockWithPin,
@@ -171,14 +171,14 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
       await ref.read(pinServiceProvider).clearPin();
-      final pin = await _requestPin('Create new CIVIQ PIN');
+      final pin = await _requestPin('Create new SIVIQ PIN');
       if (pin == null) return;
       final policyError = ref.read(pinServiceProvider).validatePinPolicy(pin);
       if (policyError != null) {
         setState(() => _error = policyError);
         return;
       }
-      final confirm = await _requestPin('Confirm new CIVIQ PIN');
+      final confirm = await _requestPin('Confirm new SIVIQ PIN');
       if (confirm != pin) {
         setState(() => _error = 'PINs do not match.');
         return;

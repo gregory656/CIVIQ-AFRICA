@@ -62,7 +62,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Data We Collect',
             body:
-                'CIVIQ Africa collects account details such as email, username, CIVIQ code, county, sub-county, profile image URL, and app activity needed to operate civic features.',
+                'SIVIQ collects account details such as email, username, SIVIQ code, county, sub-county, profile image URL, and app activity needed to operate civic features.',
           ),
           _LegalSection(
             title: 'Why We Collect It',
@@ -72,7 +72,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Location And Identity',
             body:
-                'County and sub-county selections are used for local relevance. Full email addresses are not shown publicly. Public profile identity should use your username and CIVIQ code.',
+                'County and sub-county selections are used for local relevance. Full email addresses are not shown publicly. Public profile identity should use your username and SIVIQ code.',
           ),
           _LegalSection(
             title: 'Your Choices',
@@ -82,7 +82,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Kenya Data Protection',
             body:
-                'CIVIQ Africa is designed to follow the Kenya Data Protection Act 2019, including purpose limitation, access control, and user data rights.',
+                'SIVIQ is designed to follow the Kenya Data Protection Act 2019, including purpose limitation, access control, and user data rights.',
           ),
         ],
       );
@@ -93,12 +93,12 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'User-Generated Content',
             body:
-                'Posts, ratings, comments, and reports are created by users. CIVIQ Africa does not guarantee that user submissions are true, complete, or official.',
+                'Posts, ratings, comments, and reports are created by users. SIVIQ does not guarantee that user submissions are true, complete, or official.',
           ),
           _LegalSection(
             title: 'No Government Affiliation',
             body:
-                'CIVIQ Africa is not affiliated with, endorsed by, or approved by the Government of Kenya, county governments, elected officials, or public agencies.',
+                'SIVIQ is not affiliated with, endorsed by, or approved by the Government of Kenya, county governments, elected officials, or public agencies.',
           ),
           _LegalSection(
             title: 'Accuracy',
@@ -108,7 +108,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Liability',
             body:
-                'You are responsible for your posts and comments. CIVIQ Africa may remove reported content that violates these terms or community guidelines.',
+                'You are responsible for your posts and comments. SIVIQ may remove reported content that violates these terms or community guidelines.',
           ),
           _LegalSection(
             title: 'Right of Reply',

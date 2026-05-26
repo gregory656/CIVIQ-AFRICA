@@ -79,7 +79,7 @@ class NotificationRepository {
     await _client.from('notifications').insert([
       {
         'user_id': userId,
-        'title': 'Welcome to CIVIQ Africa.',
+        'title': 'Welcome to SIVIQ.',
         'body':
             'Read our guidelines and help improve your community responsibly.',
         'is_read': false,
