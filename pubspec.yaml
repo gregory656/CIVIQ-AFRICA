@@ -71,10 +71,8 @@ flutter:
 
   assets:
     - .env.client
-    - assets/app_icon.png
-    - assets/app_icon3d.png
+    - assets/realicon.png
     - assets/splash_screen.png
-    - assets/splash_screen3d.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

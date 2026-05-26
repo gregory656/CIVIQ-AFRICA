@@ -11,11 +11,13 @@ import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/chats/data/repositories/chat_repository.dart';
 import '../../../../features/chats/presentation/screens/chats_screen.dart';
+import '../../../../features/home/presentation/screens/home_feed_screen.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../features/profile/data/security_repository.dart';
 import '../../../../features/profile/presentation/screens/social_list_screen.dart';
+import '../../../../features/projects/presentation/screens/projects_screen.dart';
 import '../../../../shared/models/kenya_location.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -85,7 +87,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               ),
             ),
-      appBar: _index == 3
+      appBar: _index == 2 || _index == 3
           ? null
           : AppBar(
               titleSpacing: 0,
@@ -135,7 +137,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: TextField(
                     decoration: InputDecoration(
-                      hintText: 'Search anything...',
+                      hintText: 'Search projects/users...',
                       prefixIcon: const Icon(Icons.search),
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -192,6 +194,14 @@ class _ShellBody extends ConsumerWidget {
 
     if (index == 3) {
       return const ChatsScreen();
+    }
+
+    if (index == 0) {
+      return const HomeFeedScreen();
+    }
+
+    if (index == 2) {
+      return const ProjectsScreen();
     }
 
     return Center(

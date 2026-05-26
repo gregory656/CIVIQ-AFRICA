@@ -296,7 +296,7 @@ begin
   end if;
 
   if array_length(normalized_members, 1) > 50 then
-    raise exception 'Phase 2 groups are limited to 50 members.';
+    raise exception 'Groups are limited to 50 members.';
   end if;
 
   foreach member_id in array normalized_members loop

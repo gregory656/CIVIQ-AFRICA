@@ -82,7 +82,7 @@ This is used for local device alerts only. Remote push delivery through FCM/APNs
 Defined in `lib/core/constants/app_assets.dart`:
 
 - `AppAssets.appIcon`
-- `AppAssets.appIcon3d`
+- `AppAssets.appIcon`
 - `AppAssets.splashScreen`
 - `AppAssets.splashScreen3d`
 
@@ -507,7 +507,7 @@ The machine has around 8 GB RAM. The old settings allowed Gradle/Kotlin to starv
 
 ### Launcher Icon
 
-The default Flutter `ic_launcher.png` files were replaced with generated PNGs from `assets/app_icon.png`.
+The default Flutter `ic_launcher.png` files were replaced with generated PNGs from `assets/realicon.png`.
 
 The generated launcher icons use softened rounded corners so the white background is not a sharp square.
 

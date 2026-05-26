@@ -149,68 +149,103 @@ class NotificationsScreen extends ConsumerWidget {
     CiviqNotification item,
   ) async {
     final parentContext = context;
-    await showModalBottomSheet<void>(
+    await showGeneralDialog<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.archive_outlined),
-              title: const Text('Archive'),
-              onTap: () async {
-                Navigator.of(sheetContext).pop();
-                await ref.read(notificationRepositoryProvider).archive(item.id);
-                _refresh(ref);
-                if (parentContext.mounted) {
-                  await showConfirmationPopup(
-                    parentContext,
-                    message: 'Notification archived',
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.report_gmailerrorred_outlined),
-              title: const Text('Report as spam'),
-              onTap: () async {
-                Navigator.of(sheetContext).pop();
-                await ref
-                    .read(notificationRepositoryProvider)
-                    .reportSpam(item.id);
-                _refresh(ref);
-                if (parentContext.mounted) {
-                  await showConfirmationPopup(
-                    parentContext,
-                    message: 'Notification reported',
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline,
-                color: AppColors.dangerRed,
+      barrierDismissible: true,
+      barrierLabel: 'Notification actions',
+      barrierColor: AppColors.black.withValues(alpha: 0.22),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (dialogContext, _, _) {
+        return SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Material(
+                color: AppColors.white,
+                elevation: 10,
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.archive_outlined),
+                        title: const Text('Archive'),
+                        onTap: () async {
+                          Navigator.of(dialogContext).pop();
+                          await ref
+                              .read(notificationRepositoryProvider)
+                              .archive(item.id);
+                          _refresh(ref);
+                          if (parentContext.mounted) {
+                            await showConfirmationPopup(
+                              parentContext,
+                              message: 'Notification archived',
+                            );
+                          }
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.report_gmailerrorred_outlined,
+                        ),
+                        title: const Text('Report as spam'),
+                        onTap: () async {
+                          Navigator.of(dialogContext).pop();
+                          await ref
+                              .read(notificationRepositoryProvider)
+                              .reportSpam(item.id);
+                          _refresh(ref);
+                          if (parentContext.mounted) {
+                            await showConfirmationPopup(
+                              parentContext,
+                              message: 'Notification reported',
+                            );
+                          }
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.delete_outline,
+                          color: AppColors.dangerRed,
+                        ),
+                        title: const Text(
+                          'Delete',
+                          style: TextStyle(color: AppColors.dangerRed),
+                        ),
+                        onTap: () async {
+                          Navigator.of(dialogContext).pop();
+                          await ref
+                              .read(notificationRepositoryProvider)
+                              .delete(item.id);
+                          _refresh(ref);
+                          if (parentContext.mounted) {
+                            await showConfirmationPopup(
+                              parentContext,
+                              message: 'Notification deleted',
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              title: const Text(
-                'Delete',
-                style: TextStyle(color: AppColors.dangerRed),
-              ),
-              onTap: () async {
-                Navigator.of(sheetContext).pop();
-                await ref.read(notificationRepositoryProvider).delete(item.id);
-                _refresh(ref);
-                if (parentContext.mounted) {
-                  await showConfirmationPopup(
-                    parentContext,
-                    message: 'Notification deleted',
-                  );
-                }
-              },
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+          child: FadeTransition(opacity: curved, child: child),
+        );
+      },
     );
   }
 

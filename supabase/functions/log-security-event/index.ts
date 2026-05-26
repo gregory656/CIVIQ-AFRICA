@@ -8,15 +8,15 @@ const corsHeaders = {
 
 const alertCopy: Record<string, { title: string; body: (name: string) => string }> = {
   pin_enabled: {
-    title: 'PIN enabled',
-    body: (name) => `Hello ${name}, your CIVIQ app PIN has been enabled.`,
+    title: 'CIVIQ Security',
+    body: (name) => `Hello ${name}, your CIVIQ app PIN has been enabled on this device.`,
   },
   pin_reset: {
     title: 'PIN reset',
     body: (name) => `Hello ${name}, your CIVIQ app PIN was reset.`,
   },
   biometrics_enabled: {
-    title: 'Biometrics enabled',
+    title: 'CIVIQ Security ',
     body: (name) => `Hello ${name}, biometric unlock has been enabled on your device.`,
   },
   account_deletion_requested: {
