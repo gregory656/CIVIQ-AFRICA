@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../core/widgets/brand_mark.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/account/data/account_repository.dart';
@@ -31,6 +32,8 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   final _tabs = const [
     _ShellTab(title: 'Home Feed', icon: Icons.home_outlined),
@@ -39,6 +42,24 @@ class _AppShellState extends ConsumerState<AppShell> {
     _ShellTab(title: 'Chats', icon: Icons.message_outlined),
     _ShellTab(title: 'Profile', icon: Icons.person_outline),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController
+      ..removeListener(_onSearchChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() => _searchQuery = _searchController.text.trim());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +81,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                       child: BrandMark(size: 38),
                     ),
                     const Divider(),
-                    const _DrawerItem(icon: Icons.help_outline, label: 'FAQ'),
+                    _DrawerItem(
+                      icon: Icons.help_outline,
+                      label: 'FAQ',
+                      route: '/legal/faq',
+                    ),
                     _DrawerItem(
                       icon: Icons.groups_outlined,
                       label: 'Community Guidelines',
@@ -71,19 +96,25 @@ class _AppShellState extends ConsumerState<AppShell> {
                       label: 'Terms',
                       route: '/legal/terms',
                     ),
-                    const _DrawerItem(
+                    _DrawerItem(
                       icon: Icons.assignment_return_outlined,
                       label: 'Appeals',
+                      route: '/legal/appeals',
                     ),
                     _DrawerItem(
                       icon: Icons.privacy_tip_outlined,
                       label: 'Privacy Policy',
                       route: '/legal/privacy-policy',
                     ),
-                    const _DrawerItem(icon: Icons.info_outline, label: 'About'),
-                    const _DrawerItem(
+                    _DrawerItem(
+                      icon: Icons.info_outline,
+                      label: 'About',
+                      route: '/legal/about',
+                    ),
+                    _DrawerItem(
                       icon: Icons.mail_outline,
                       label: 'Contact',
+                      route: '/legal/contact',
                     ),
                   ],
                 ),
@@ -140,9 +171,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search projects/users...',
+                      hintText: 'Search SIVIQ...',
                       prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: _searchController.clear,
+                              icon: const Icon(Icons.close),
+                            ),
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                       filled: true,
@@ -156,7 +195,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               ),
             ),
-      body: _ShellBody(tab: tab, index: _index),
+      body: _ShellBody(tab: tab, index: _index, searchQuery: _searchQuery),
       floatingActionButton: _index == 0
           ? FloatingActionButton(
               tooltip: 'Create post',
@@ -186,10 +225,15 @@ class _AppShellState extends ConsumerState<AppShell> {
 }
 
 class _ShellBody extends ConsumerWidget {
-  const _ShellBody({required this.tab, required this.index});
+  const _ShellBody({
+    required this.tab,
+    required this.index,
+    required this.searchQuery,
+  });
 
   final _ShellTab tab;
   final int index;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -213,6 +257,9 @@ class _ShellBody extends ConsumerWidget {
     }
 
     if (index == 0) {
+      if (searchQuery.length >= 2) {
+        return GlobalSearchScreen(query: searchQuery);
+      }
       return const HomeFeedScreen();
     }
 
@@ -606,7 +653,14 @@ class _DangerZoneActionsState extends ConsumerState<_DangerZoneActions> {
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete account: $error')),
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(
+                error,
+                fallback: 'Could not delete account. Please try again.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -785,7 +839,7 @@ class _ProfileError extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              error.toString(),
+              friendlyErrorMessage(error, fallback: 'Could not load profile.'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.grey),
             ),

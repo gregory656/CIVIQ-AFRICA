@@ -240,6 +240,35 @@ class ProjectRepository {
     });
   }
 
+  Future<void> updateProject(String projectId, CreateProjectInput input) async {
+    if (!input.confirmedAccuracy) {
+      throw Exception('Confirm the project information before saving.');
+    }
+    await _client
+        .from('projects')
+        .update({
+          'title': input.title,
+          'description': input.description,
+          'project_type': input.projectType,
+          'county_id': input.countyId,
+          'subcounty_id': input.subcountyId,
+          'location_name': input.locationName,
+          if (input.imageUrl != null) 'image_url': input.imageUrl,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', projectId);
+  }
+
+  Future<void> deleteProject(String projectId) async {
+    await _client
+        .from('projects')
+        .update({
+          'deleted_at': DateTime.now().toUtc().toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', projectId);
+  }
+
   Future<void> voteProject(String projectId, bool isApproval) async {
     await _client.rpc(
       'vote_project',
@@ -250,11 +279,11 @@ class ProjectRepository {
   Future<void> reportProject(String projectId, String reason) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('Sign in again to report.');
-    await _client.from('project_reports').insert({
+    await _client.from('project_reports').upsert({
       'project_id': projectId,
       'reporter_id': userId,
       'reason': reason,
-    });
+    }, onConflict: 'project_id,reporter_id');
   }
 
   Future<List<ProjectComment>> fetchComments(String projectId) async {

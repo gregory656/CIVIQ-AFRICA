@@ -53,6 +53,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/legal/faq',
+        builder: (context, state) =>
+            const LegalDocumentScreen(document: LegalDocument.faq),
+      ),
+      GoRoute(
+        path: '/legal/about',
+        builder: (context, state) =>
+            const LegalDocumentScreen(document: LegalDocument.about),
+      ),
+      GoRoute(
+        path: '/legal/appeals',
+        builder: (context, state) =>
+            const LegalDocumentScreen(document: LegalDocument.appeals),
+      ),
+      GoRoute(
+        path: '/legal/contact',
+        builder: (context, state) =>
+            const LegalDocumentScreen(document: LegalDocument.contact),
+      ),
+      GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
       ),

@@ -29,6 +29,7 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
 
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   final _messageController = TextEditingController();
+  final _messageFocusNode = FocusNode();
   final _scrollController = ScrollController();
   RealtimeChannel? _messagesChannel;
   RealtimeChannel? _typingChannel;
@@ -58,6 +59,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final typingChannel = _typingChannel;
     if (messagesChannel != null) repository.removeChannel(messagesChannel);
     if (typingChannel != null) repository.removeChannel(typingChannel);
+    _messageFocusNode.dispose();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -296,6 +298,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             ),
             _MessageComposer(
               controller: _messageController,
+              focusNode: _messageFocusNode,
               sending: _sending,
               onChanged: (_) => _sendTyping(),
               onSend: _sendMessage,
@@ -495,6 +498,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       _replyToMessage = message;
       _editingMessage = null;
     });
+    _messageFocusNode.requestFocus();
   }
 
   void _startEdit(ChatMessage message) {
@@ -506,6 +510,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         TextPosition(offset: _messageController.text.length),
       );
     });
+    _messageFocusNode.requestFocus();
   }
 
   void _clearComposerContext() {
@@ -1012,6 +1017,7 @@ class _ReplyPreview extends StatelessWidget {
 class _MessageComposer extends StatelessWidget {
   const _MessageComposer({
     required this.controller,
+    required this.focusNode,
     required this.sending,
     required this.onChanged,
     required this.onSend,
@@ -1022,6 +1028,7 @@ class _MessageComposer extends StatelessWidget {
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool sending;
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
@@ -1070,6 +1077,7 @@ class _MessageComposer extends StatelessWidget {
                       ),
                       child: TextField(
                         controller: controller,
+                        focusNode: focusNode,
                         onChanged: onChanged,
                         minLines: 1,
                         maxLines: 5,

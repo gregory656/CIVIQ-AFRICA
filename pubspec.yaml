@@ -44,6 +44,7 @@ dependencies:
   share_plus: ^13.1.0
   path_provider: ^2.1.5
   gal: ^2.3.2
+  url_launcher: ^6.3.2
   flutter_local_notifications: ^21.0.0
   flutter_secure_storage: ^10.2.0
   local_auth: ^3.0.1
@@ -74,7 +75,7 @@ flutter:
   assets:
     - .env.client
     - assets/realicon.png
-    - assets/splash_screen.png
+    - assets/real_splash.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

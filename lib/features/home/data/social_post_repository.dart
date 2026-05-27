@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../projects/data/project_repository.dart';
 
 final socialPostRepositoryProvider = Provider<SocialPostRepository>((ref) {
   return SocialPostRepository(ref.watch(supabaseClientProvider));
@@ -14,6 +16,14 @@ final socialHomeFeedProvider = FutureProvider<List<SocialPost>>((ref) {
   if (providerUserId == null && authUserId == null) return const [];
   return ref.watch(socialPostRepositoryProvider).fetchFeed();
 });
+
+final globalSearchProvider = FutureProvider.family<GlobalSearchResults, String>(
+  (ref, query) async {
+    final normalized = query.trim();
+    if (normalized.length < 2) return GlobalSearchResults.empty;
+    return ref.watch(socialPostRepositoryProvider).globalSearch(normalized);
+  },
+);
 
 class SocialPost {
   const SocialPost({
@@ -131,17 +141,65 @@ class SocialPostRepository {
 
   final SupabaseClient _client;
 
-  Future<List<SocialPost>> fetchFeed({int limit = 40}) async {
+  Future<List<SocialPost>> fetchFeed({int limit = 20, int offset = 0}) async {
+    final archiveCutoff = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(days: 14))
+        .toIso8601String();
     final rows = await _client
         .from('v_social_post_feed')
         .select()
+        .gte('created_at', archiveCutoff)
         .order('created_at', ascending: false)
-        .limit(limit);
+        .range(offset, offset + limit - 1);
     return rows
         .map<SocialPost>(
           (row) => SocialPost.fromJson(Map<String, dynamic>.from(row)),
         )
         .toList(growable: false);
+  }
+
+  Future<GlobalSearchResults> globalSearch(String query) async {
+    final pattern = '%${query.replaceAll('%', '').replaceAll('_', '')}%';
+    final profileRows = await _client
+        .from('profiles')
+        .select('id,username,civiq_code,avatar_url,is_verified,role_label')
+        .or(
+          'username.ilike.$pattern,bio.ilike.$pattern,civiq_code.ilike.$pattern',
+        )
+        .limit(12);
+    final postRows = await _client
+        .from('v_social_post_feed')
+        .select()
+        .ilike('body', pattern)
+        .order('created_at', ascending: false)
+        .limit(20);
+    final projectRows = await _client
+        .from('v_project_feed')
+        .select()
+        .or(
+          'title.ilike.$pattern,description.ilike.$pattern,location_name.ilike.$pattern',
+        )
+        .order('created_at', ascending: false)
+        .limit(12);
+
+    return GlobalSearchResults(
+      profiles: profileRows
+          .map<ProfileConnection>(
+            (row) => ProfileConnection.fromJson(Map<String, dynamic>.from(row)),
+          )
+          .toList(growable: false),
+      posts: postRows
+          .map<SocialPost>(
+            (row) => SocialPost.fromJson(Map<String, dynamic>.from(row)),
+          )
+          .toList(growable: false),
+      projects: projectRows
+          .map<CiviqProject>(
+            (row) => CiviqProject.fromJson(Map<String, dynamic>.from(row)),
+          )
+          .toList(growable: false),
+    );
   }
 
   Future<void> createPost({required String body, String? imageUrl}) async {
@@ -174,6 +232,28 @@ class SocialPostRepository {
         })
         .eq('id', postId);
   }
+
+  Future<void> reportPost(String postId, String reason) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Sign in again to report.');
+    await _client.from('social_post_reports').upsert({
+      'post_id': postId,
+      'reporter_id': userId,
+      'reason': reason,
+    }, onConflict: 'post_id,reporter_id');
+  }
+
+  Future<void> hidePost(String postId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Sign in again to hide this post.');
+    await _client.from('social_post_hidden_users').upsert({
+      'post_id': postId,
+      'user_id': userId,
+      'hidden_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  Future<void> blockPost(String postId) => hidePost(postId);
 
   Future<void> toggleLike(String postId) async {
     await _client.rpc(
@@ -250,4 +330,24 @@ class SocialPostRepository {
       params: {'target_post_id': postId},
     );
   }
+}
+
+class GlobalSearchResults {
+  const GlobalSearchResults({
+    required this.profiles,
+    required this.posts,
+    required this.projects,
+  });
+
+  final List<ProfileConnection> profiles;
+  final List<SocialPost> posts;
+  final List<CiviqProject> projects;
+
+  static const empty = GlobalSearchResults(
+    profiles: [],
+    posts: [],
+    projects: [],
+  );
+
+  bool get isEmpty => profiles.isEmpty && posts.isEmpty && projects.isEmpty;
 }

@@ -137,14 +137,13 @@ class NotificationRepository {
   }
 
   Future<int> fetchUnreadCount(String userId) async {
-    final response = await _client
+    return _client
         .from('notifications')
-        .select('id')
+        .count(CountOption.exact)
         .eq('user_id', userId)
         .eq('is_read', false)
         .filter('archived_at', 'is', null)
         .filter('deleted_at', 'is', null);
-    return response.length;
   }
 
   Future<void> markAllRead(String userId) async {

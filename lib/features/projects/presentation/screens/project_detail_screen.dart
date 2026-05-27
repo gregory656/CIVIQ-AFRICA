@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/friendly_error.dart';
+import '../../../../core/widgets/linkified_text.dart';
 import '../../data/project_repository.dart';
 
 class ProjectDetailScreen extends ConsumerWidget {
@@ -85,8 +87,8 @@ class ProjectDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    project.description?.trim().isNotEmpty == true
+                  LinkifiedText(
+                    text: project.description?.trim().isNotEmpty == true
                         ? project.description!
                         : 'No description provided.',
                   ),
@@ -137,15 +139,27 @@ class ProjectDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     bool isApproval,
   ) async {
-    await ref
-        .read(projectRepositoryProvider)
-        .voteProject(project.id, isApproval);
-    ref.invalidate(projectsProvider);
-    ref.invalidate(localProjectFeedProvider);
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Vote recorded')));
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .voteProject(project.id, isApproval);
+      ref.invalidate(projectsProvider);
+      ref.invalidate(localProjectFeedProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Vote recorded')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(error, fallback: 'Could not record vote.'),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -175,11 +189,28 @@ class ProjectDetailScreen extends ConsumerWidget {
     );
     controller.dispose();
     if (reason == null || reason.isEmpty) return;
-    await ref.read(projectRepositoryProvider).reportProject(project.id, reason);
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .reportProject(project.id, reason);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(
+                error,
+                fallback: 'Could not report project.',
+              ),
+            ),
+          ),
+        );
+      }
     }
   }
 }

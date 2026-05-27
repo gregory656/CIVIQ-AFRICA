@@ -8,6 +8,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/cloudinary_service.dart';
+import '../../../../core/utils/friendly_error.dart';
+import '../../../../core/widgets/linkified_text.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
@@ -73,6 +75,8 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
   @override
   Widget build(BuildContext context) {
     final project = widget.project;
+    final currentUserId = ref.watch(currentAuthUserIdProvider);
+    final isOwner = currentUserId != null && currentUserId == project.creatorId;
     final imageUrl = project.imageUrl?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return Container(
@@ -116,7 +120,7 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
                 _VerificationBadge(status: project.verificationStatus),
                 IconButton(
                   tooltip: 'Project actions',
-                  onPressed: _showProjectActions,
+                  onPressed: () => _showProjectActions(isOwner: isOwner),
                   icon: const Icon(Icons.more_horiz),
                 ),
               ],
@@ -127,11 +131,10 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
             ),
             const SizedBox(height: 6),
-            Text(
-              project.description?.trim().isNotEmpty == true
+            _ProjectReadMoreText(
+              text: project.description?.trim().isNotEmpty == true
                   ? project.description!
                   : 'No description provided.',
-              style: const TextStyle(fontSize: 14),
             ),
             if (hasImage) ...[
               const SizedBox(height: 12),
@@ -201,19 +204,18 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
 
   void _openDetail() {
     final project = widget.project;
-    Navigator.of(context, rootNavigator: true).push(
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ProjectDetailScreen(project: project),
       ),
     );
   }
 
-  Future<void> _showProjectActions() async {
-    final action = await _showCenteredProjectActions(context);
+  Future<void> _showProjectActions({required bool isOwner}) async {
+    final action = await _showCenteredProjectActions(context, isOwner: isOwner);
     if (!mounted || action == null) return;
     switch (action) {
       case 'open':
-        await Future<void>.delayed(const Duration(milliseconds: 260));
         if (mounted) _openDetail();
         break;
       case 'share':
@@ -223,6 +225,17 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
         break;
       case 'report':
         await _reportProject();
+        break;
+      case 'hide':
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Project hidden')));
+        break;
+      case 'edit':
+        await _editProject();
+        break;
+      case 'delete':
+        await _deleteProject();
         break;
     }
   }
@@ -253,13 +266,24 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
     );
     controller.dispose();
     if (reason == null || reason.isEmpty) return;
-    await ref
-        .read(projectRepositoryProvider)
-        .reportProject(widget.project.id, reason);
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .reportProject(widget.project.id, reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not report project.'),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _vote(bool isApproval) async {
@@ -267,6 +291,141 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
         .read(projectRepositoryProvider)
         .voteProject(widget.project.id, isApproval);
     ref.invalidate(projectsProvider);
+  }
+
+  Future<void> _editProject() async {
+    final titleController = TextEditingController(text: widget.project.title);
+    final descriptionController = TextEditingController(
+      text: widget.project.description ?? '',
+    );
+    var type = widget.project.projectType;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit project'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'ongoing', label: Text('Ongoing')),
+                    ButtonSegment(value: 'completed', label: Text('Done')),
+                    ButtonSegment(value: 'stalled', label: Text('Stalled')),
+                    ButtonSegment(value: 'excellent', label: Text('Excellent')),
+                  ],
+                  selected: {type},
+                  onSelectionChanged: (value) =>
+                      setDialogState(() => type = value.first),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Title'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  minLines: 4,
+                  maxLines: 6,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
+    titleController.dispose();
+    descriptionController.dispose();
+    if (saved != true || title.isEmpty) return;
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .updateProject(
+            widget.project.id,
+            CreateProjectInput(
+              title: title,
+              description: description,
+              projectType: type,
+              countyId: widget.project.countyId,
+              subcountyId: widget.project.subcountyId,
+              locationName: widget.project.locationName,
+              imageUrl: widget.project.imageUrl,
+              confirmedAccuracy: true,
+            ),
+          );
+      ref.invalidate(projectsProvider);
+      ref.invalidate(localProjectFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Project updated')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not update project.'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteProject() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete project?'),
+        content: const Text('This will remove the project post from SIVIQ.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .deleteProject(widget.project.id);
+      ref.invalidate(projectsProvider);
+      ref.invalidate(localProjectFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Project deleted')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not delete project.'),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _openComments() async {
@@ -342,6 +501,46 @@ class _ProjectAction extends StatelessWidget {
   }
 }
 
+class _ProjectReadMoreText extends StatefulWidget {
+  const _ProjectReadMoreText({required this.text});
+
+  final String text;
+
+  @override
+  State<_ProjectReadMoreText> createState() => _ProjectReadMoreTextState();
+}
+
+class _ProjectReadMoreTextState extends State<_ProjectReadMoreText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLong = widget.text.length > 180;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LinkifiedText(
+          text: widget.text,
+          maxLines: _expanded || !isLong ? null : 4,
+          overflow: _expanded || !isLong
+              ? TextOverflow.clip
+              : TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14),
+        ),
+        if (isLong)
+          TextButton(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(_expanded ? 'Show less' : 'Read more'),
+          ),
+      ],
+    );
+  }
+}
+
 class _VerificationBadge extends StatelessWidget {
   const _VerificationBadge({required this.status});
 
@@ -371,7 +570,10 @@ class _VerificationBadge extends StatelessWidget {
   }
 }
 
-Future<String?> _showCenteredProjectActions(BuildContext context) {
+Future<String?> _showCenteredProjectActions(
+  BuildContext context, {
+  required bool isOwner,
+}) {
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
@@ -419,6 +621,30 @@ Future<String?> _showCenteredProjectActions(BuildContext context) {
                       title: const Text('Share'),
                       onTap: () => Navigator.of(dialogContext).pop('share'),
                     ),
+                    if (isOwner)
+                      ListTile(
+                        leading: const Icon(Icons.edit_outlined),
+                        title: const Text('Edit project'),
+                        onTap: () => Navigator.of(dialogContext).pop('edit'),
+                      ),
+                    if (isOwner)
+                      ListTile(
+                        leading: const Icon(
+                          Icons.delete_outline,
+                          color: AppColors.dangerRed,
+                        ),
+                        title: const Text(
+                          'Delete project',
+                          style: TextStyle(color: AppColors.dangerRed),
+                        ),
+                        onTap: () => Navigator.of(dialogContext).pop('delete'),
+                      ),
+                    if (!isOwner)
+                      ListTile(
+                        leading: const Icon(Icons.visibility_off_outlined),
+                        title: const Text('Hide project'),
+                        onTap: () => Navigator.of(dialogContext).pop('hide'),
+                      ),
                     ListTile(
                       leading: const Icon(
                         Icons.flag_outlined,
@@ -495,6 +721,7 @@ class ProjectCommentsSheet extends ConsumerStatefulWidget {
 
 class _ProjectCommentsSheetState extends ConsumerState<ProjectCommentsSheet> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   String? _replyToCommentId;
   String? _replyToName;
   bool _loading = true;
@@ -510,6 +737,7 @@ class _ProjectCommentsSheetState extends ConsumerState<ProjectCommentsSheet> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -566,16 +794,19 @@ class _ProjectCommentsSheetState extends ConsumerState<ProjectCommentsSheet> {
                   ? const Center(child: Text('No comments yet.'))
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                      children: _threadedComments()
-                          .map(
-                            (item) => _ProjectCommentTile(
-                              comment: item.comment,
-                              indent: item.depth * 18,
-                              onReply: () => _replyTo(item.comment),
-                              onChanged: _load,
-                            ),
-                          )
-                          .toList(),
+                      children: _threadedComments().map((item) {
+                        final parent = item.comment.parentCommentId == null
+                            ? null
+                            : _commentById()[item.comment.parentCommentId];
+                        return _ProjectCommentTile(
+                          comment: item.comment,
+                          parentComment: parent,
+                          depth: item.depth,
+                          indent: item.depth * 18,
+                          onReply: () => _replyTo(item.comment),
+                          onChanged: _load,
+                        );
+                      }).toList(),
                     ),
             ),
             if (_replyToName != null)
@@ -604,6 +835,7 @@ class _ProjectCommentsSheetState extends ConsumerState<ProjectCommentsSheet> {
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
               child: TextField(
                 controller: _controller,
+                focusNode: _focusNode,
                 minLines: 1,
                 maxLines: 4,
                 decoration: InputDecoration(
@@ -653,11 +885,16 @@ class _ProjectCommentsSheetState extends ConsumerState<ProjectCommentsSheet> {
     return result;
   }
 
+  Map<String, ProjectComment> _commentById() {
+    return {for (final comment in _comments) comment.id: comment};
+  }
+
   void _replyTo(ProjectComment comment) {
     setState(() {
       _replyToCommentId = comment.id;
       _replyToName = comment.displayName;
     });
+    _focusNode.requestFocus();
   }
 
   Future<void> _send() async {
@@ -692,12 +929,16 @@ class _ThreadedProjectComment {
 class _ProjectCommentTile extends ConsumerWidget {
   const _ProjectCommentTile({
     required this.comment,
+    required this.parentComment,
+    required this.depth,
     required this.indent,
     required this.onReply,
     required this.onChanged,
   });
 
   final ProjectComment comment;
+  final ProjectComment? parentComment;
+  final int depth;
   final double indent;
   final VoidCallback onReply;
   final Future<void> Function() onChanged;
@@ -711,6 +952,13 @@ class _ProjectCommentTile extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (depth > 0)
+            Container(
+              width: 2,
+              height: 74,
+              margin: const EdgeInsets.only(right: 8, top: 2),
+              color: AppColors.primaryGreen.withValues(alpha: 0.28),
+            ),
           _SmallAvatar(url: comment.authorAvatarUrl),
           const SizedBox(width: 10),
           Expanded(
@@ -747,8 +995,15 @@ class _ProjectCommentTile extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        if (parentComment != null) ...[
+                          const SizedBox(height: 7),
+                          _ProjectCommentReplyLink(
+                            username: parentComment!.displayName,
+                            body: parentComment!.body,
+                          ),
+                        ],
                         const SizedBox(height: 4),
-                        Text(comment.body),
+                        LinkifiedText(text: comment.body),
                       ],
                     ),
                   ),
@@ -863,6 +1118,50 @@ class _ProjectCommentTile extends ConsumerWidget {
         break;
     }
     await onChanged();
+  }
+}
+
+class _ProjectCommentReplyLink extends StatelessWidget {
+  const _ProjectCommentReplyLink({required this.username, required this.body});
+
+  final String username;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(7),
+        border: const Border(
+          left: BorderSide(color: AppColors.primaryGreen, width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Replying to $username',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.primaryGreen,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          LinkifiedText(
+            text: body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.grey),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1152,7 +1451,9 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
   Future<void> _pickImage() async {
     final image = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 82,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 72,
     );
     if (image != null) setState(() => _image = image);
   }
@@ -1357,7 +1658,10 @@ class _ProjectError extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text('Could not load projects: $error'),
+        child: Text(
+          friendlyErrorMessage(error, fallback: 'Could not load projects.'),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

@@ -285,8 +285,9 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
   Future<void> _pickPhoto() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      imageQuality: 82,
-      maxWidth: 1200,
+      imageQuality: 74,
+      maxWidth: 1000,
+      maxHeight: 1000,
     );
     if (picked == null) return;
     setState(() => _photo = File(picked.path));

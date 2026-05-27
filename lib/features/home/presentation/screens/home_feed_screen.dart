@@ -13,9 +13,14 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/cloudinary_service.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../core/widgets/confirmation_popup.dart';
+import '../../../../core/widgets/linkified_text.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../auth/data/auth_repository.dart';
+import '../../../profile/data/profile_repository.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
+import '../../../projects/presentation/screens/projects_screen.dart';
 import '../../data/social_post_repository.dart';
 
 class HomeFeedScreen extends ConsumerStatefulWidget {
@@ -152,7 +157,9 @@ class _CreateSocialPostScreenState
   Future<void> _pickImage() async {
     final image = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 82,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 72,
     );
     if (image != null) setState(() => _image = image);
   }
@@ -182,27 +189,216 @@ class _CreateSocialPostScreenState
       ref.invalidate(socialHomeFeedProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = friendlyErrorMessage(
+          error,
+          fallback: 'Could not create post. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _posting = false);
     }
   }
 }
 
-class _SocialFeedList extends ConsumerWidget {
+class GlobalSearchScreen extends ConsumerWidget {
+  const GlobalSearchScreen({super.key, required this.query});
+
+  final String query;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final results = ref.watch(globalSearchProvider(query));
+    return results.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _FeedError(error: error),
+      data: (results) {
+        if (results.isEmpty) {
+          return const Center(child: Text('No matching SIVIQ results yet.'));
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+          children: [
+            if (results.profiles.isNotEmpty) ...[
+              const _SearchSectionTitle('Profiles'),
+              ...results.profiles.map((profile) => _SearchProfileTile(profile)),
+              const SizedBox(height: 10),
+            ],
+            if (results.posts.isNotEmpty) ...[
+              const _SearchSectionTitle('Posts Near You'),
+              ...results.posts
+                  .take(8)
+                  .map(
+                    (post) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: SocialPostCard(post: post),
+                    ),
+                  ),
+              const SizedBox(height: 10),
+            ],
+            if (results.projects.isNotEmpty) ...[
+              const _SearchSectionTitle('Project Posts'),
+              ...results.projects.map(
+                (project) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ProjectFeedCard(project: project),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SearchSectionTitle extends StatelessWidget {
+  const _SearchSectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 10),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+      ),
+    );
+  }
+}
+
+class _SearchProfileTile extends ConsumerStatefulWidget {
+  const _SearchProfileTile(this.profile);
+
+  final ProfileConnection profile;
+
+  @override
+  ConsumerState<_SearchProfileTile> createState() => _SearchProfileTileState();
+}
+
+class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
+  bool _following = false;
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = widget.profile;
+    final name = profile.username?.isNotEmpty == true
+        ? '@${profile.username}'
+        : 'SIVIQ Member';
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: _Avatar(url: profile.avatarUrl),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              name,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          if (profile.isVerified) ...[
+            const SizedBox(width: 5),
+            const CiviqVerifiedBadge(size: 15),
+          ],
+        ],
+      ),
+      subtitle: Text(profile.roleLabel ?? profile.civiqCode ?? 'SIVIQ profile'),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PublicProfileScreen(profileId: profile.id),
+        ),
+      ),
+      trailing: SizedBox(
+        width: 94,
+        child: FilledButton(
+          onPressed: _saving || _following ? null : _follow,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _saving
+                  ? 'Following...'
+                  : _following || profile.isFollowed
+                  ? 'Following'
+                  : 'Follow',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _follow() async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(profileRepositoryProvider)
+          .followProfile(widget.profile.id);
+      if (!mounted) return;
+      setState(() {
+        _following = true;
+        _saving = false;
+      });
+      ref.invalidate(currentProfileProvider);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not follow profile.'),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+class _SocialFeedList extends ConsumerStatefulWidget {
   const _SocialFeedList({required this.posts, this.trending = false});
 
   final AsyncValue<List<SocialPost>> posts;
   final bool trending;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return posts.when(
+  ConsumerState<_SocialFeedList> createState() => _SocialFeedListState();
+}
+
+class _SocialFeedListState extends ConsumerState<_SocialFeedList> {
+  final _controller = ScrollController();
+  final List<SocialPost> _extraPosts = [];
+  bool _loadingMore = false;
+  bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.posts.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('Could not load feed: $error')),
+      error: (error, _) => _FeedError(error: error),
       data: (items) {
-        final sorted = [...items];
-        if (trending) {
+        final byId = <String, SocialPost>{};
+        for (final item in [...items, ..._extraPosts]) {
+          byId[item.id] = item;
+        }
+        final sorted = byId.values.toList();
+        if (widget.trending) {
           sorted.sort(
             (a, b) => (b.likeCount + b.commentCount + b.shareCount).compareTo(
               a.likeCount + a.commentCount + a.shareCount,
@@ -211,19 +407,58 @@ class _SocialFeedList extends ConsumerWidget {
         }
         if (sorted.isEmpty) return const _EmptyFeed();
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(socialHomeFeedProvider),
+          onRefresh: () async {
+            setState(() {
+              _extraPosts.clear();
+              _hasMore = true;
+            });
+            ref.invalidate(socialHomeFeedProvider);
+          },
           child: ListView.separated(
+            controller: _controller,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-            itemCount: sorted.length,
+            itemCount: sorted.length + (_hasMore ? 1 : 0),
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
+              if (index >= sorted.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 18),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
               return SocialPostCard(post: sorted[index]);
             },
           ),
         );
       },
     );
+  }
+
+  void _onScroll() {
+    if (!_hasMore || _loadingMore || !_controller.hasClients) return;
+    final remaining =
+        _controller.position.maxScrollExtent - _controller.position.pixels;
+    if (remaining < 520) _loadMore();
+  }
+
+  Future<void> _loadMore() async {
+    setState(() => _loadingMore = true);
+    try {
+      final firstPage = widget.posts.asData?.value.length ?? 0;
+      final more = await ref
+          .read(socialPostRepositoryProvider)
+          .fetchFeed(offset: firstPage + _extraPosts.length);
+      if (!mounted) return;
+      setState(() {
+        _extraPosts.addAll(more);
+        _hasMore = more.isNotEmpty;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _hasMore = false);
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 }
 
@@ -318,7 +553,10 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
                         ),
                         const SizedBox(height: 12),
                         if (post.body.isNotEmpty)
-                          Text(post.body, style: const TextStyle(fontSize: 15)),
+                          _ReadMoreText(
+                            text: post.body,
+                            style: const TextStyle(fontSize: 15),
+                          ),
                         if (post.imageUrl?.isNotEmpty == true) ...[
                           const SizedBox(height: 12),
                           ClipRRect(
@@ -412,6 +650,9 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
     if (action == 'save') await _saveWatermarkedPost();
     if (action == 'edit') await _editPost();
     if (action == 'delete') await _deletePost();
+    if (action == 'report') await _reportPost();
+    if (action == 'hide') await _hidePost();
+    if (action == 'block') await _blockPost();
   }
 
   void _openExpandedPost() {
@@ -445,7 +686,7 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
       if (!mounted) return;
       final message = error is GalException
           ? _gallerySaveError(error)
-          : 'Could not save post: $error';
+          : friendlyErrorMessage(error, fallback: 'Could not save post.');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -531,15 +772,115 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
     );
     controller.dispose();
     if (body == null || body.isEmpty) return;
-    await ref
-        .read(socialPostRepositoryProvider)
-        .updatePost(widget.post.id, body);
-    ref.invalidate(socialHomeFeedProvider);
+    try {
+      await ref
+          .read(socialPostRepositoryProvider)
+          .updatePost(widget.post.id, body);
+      ref.invalidate(socialHomeFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post updated')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not update post.'),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _deletePost() async {
-    await ref.read(socialPostRepositoryProvider).deletePost(widget.post.id);
-    ref.invalidate(socialHomeFeedProvider);
+    try {
+      await ref.read(socialPostRepositoryProvider).deletePost(widget.post.id);
+      ref.invalidate(socialHomeFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post deleted')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not delete post.'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _reportPost() async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report post'),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Reason'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || reason.isEmpty) return;
+    try {
+      await ref
+          .read(socialPostRepositoryProvider)
+          .reportPost(widget.post.id, reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not report post.'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _hidePost() async {
+    try {
+      await ref.read(socialPostRepositoryProvider).hidePost(widget.post.id);
+      ref.invalidate(socialHomeFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post hidden')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not hide post.'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _blockPost() async {
+    await _hidePost();
   }
 }
 
@@ -595,8 +936,8 @@ class SocialPostDetailScreen extends StatelessWidget {
             ),
             if (post.body.isNotEmpty) ...[
               const SizedBox(height: 14),
-              Text(
-                post.body,
+              LinkifiedText(
+                text: post.body,
                 style: const TextStyle(fontSize: 16, height: 1.42),
               ),
             ],
@@ -693,6 +1034,27 @@ Future<String?> _showCenteredPostActions({
                       leading: const Icon(Icons.download_outlined),
                       title: const Text('Save to device'),
                       onTap: () => Navigator.of(dialogContext).pop('save'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.visibility_off_outlined),
+                      title: const Text('Hide post'),
+                      onTap: () => Navigator.of(dialogContext).pop('hide'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.block_outlined),
+                      title: const Text('Block post'),
+                      onTap: () => Navigator.of(dialogContext).pop('block'),
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.flag_outlined,
+                        color: AppColors.dangerRed,
+                      ),
+                      title: const Text(
+                        'Report post',
+                        style: TextStyle(color: AppColors.dangerRed),
+                      ),
+                      onTap: () => Navigator.of(dialogContext).pop('report'),
                     ),
                     if (isOwner)
                       ListTile(
@@ -804,6 +1166,7 @@ class SocialCommentsSheet extends ConsumerStatefulWidget {
 
 class _SocialCommentsSheetState extends ConsumerState<SocialCommentsSheet> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   String? _replyToCommentId;
   String? _replyToName;
   bool _loading = true;
@@ -819,6 +1182,7 @@ class _SocialCommentsSheetState extends ConsumerState<SocialCommentsSheet> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -875,16 +1239,19 @@ class _SocialCommentsSheetState extends ConsumerState<SocialCommentsSheet> {
                   ? const Center(child: Text('No comments yet.'))
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                      children: _threadedComments()
-                          .map(
-                            (item) => _SocialCommentTile(
-                              comment: item.comment,
-                              indent: item.depth * 18,
-                              onReply: () => _replyTo(item.comment),
-                              onChanged: _load,
-                            ),
-                          )
-                          .toList(),
+                      children: _threadedComments().map((item) {
+                        final parent = item.comment.parentCommentId == null
+                            ? null
+                            : _commentById()[item.comment.parentCommentId];
+                        return _SocialCommentTile(
+                          comment: item.comment,
+                          parentComment: parent,
+                          depth: item.depth,
+                          indent: item.depth * 18,
+                          onReply: () => _replyTo(item.comment),
+                          onChanged: _load,
+                        );
+                      }).toList(),
                     ),
             ),
             if (_replyToName != null)
@@ -913,6 +1280,7 @@ class _SocialCommentsSheetState extends ConsumerState<SocialCommentsSheet> {
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
               child: TextField(
                 controller: _controller,
+                focusNode: _focusNode,
                 minLines: 1,
                 maxLines: 4,
                 decoration: InputDecoration(
@@ -962,11 +1330,16 @@ class _SocialCommentsSheetState extends ConsumerState<SocialCommentsSheet> {
     return result;
   }
 
+  Map<String, SocialComment> _commentById() {
+    return {for (final comment in _comments) comment.id: comment};
+  }
+
   void _replyTo(SocialComment comment) {
     setState(() {
       _replyToCommentId = comment.id;
       _replyToName = comment.displayName;
     });
+    _focusNode.requestFocus();
   }
 
   Future<void> _send() async {
@@ -997,12 +1370,16 @@ class _ThreadedSocialComment {
 class _SocialCommentTile extends ConsumerWidget {
   const _SocialCommentTile({
     required this.comment,
+    required this.parentComment,
+    required this.depth,
     required this.indent,
     required this.onReply,
     required this.onChanged,
   });
 
   final SocialComment comment;
+  final SocialComment? parentComment;
+  final int depth;
   final double indent;
   final VoidCallback onReply;
   final Future<void> Function() onChanged;
@@ -1016,6 +1393,13 @@ class _SocialCommentTile extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (depth > 0)
+            Container(
+              width: 2,
+              height: 74,
+              margin: const EdgeInsets.only(right: 8, top: 2),
+              color: AppColors.primaryGreen.withValues(alpha: 0.28),
+            ),
           _Avatar(url: comment.authorAvatarUrl),
           const SizedBox(width: 10),
           Expanded(
@@ -1052,8 +1436,15 @@ class _SocialCommentTile extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        if (parentComment != null) ...[
+                          const SizedBox(height: 7),
+                          _CommentReplyLink(
+                            username: parentComment!.displayName,
+                            body: parentComment!.body,
+                          ),
+                        ],
                         const SizedBox(height: 4),
-                        Text(comment.body),
+                        LinkifiedText(text: comment.body),
                       ],
                     ),
                   ),
@@ -1167,6 +1558,50 @@ class _SocialCommentTile extends ConsumerWidget {
         break;
     }
     await onChanged();
+  }
+}
+
+class _CommentReplyLink extends StatelessWidget {
+  const _CommentReplyLink({required this.username, required this.body});
+
+  final String username;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(7),
+        border: const Border(
+          left: BorderSide(color: AppColors.primaryGreen, width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Replying to $username',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.primaryGreen,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          LinkifiedText(
+            text: body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.grey),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1317,6 +1752,82 @@ class _EmptyFeed extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
+      ],
+    );
+  }
+}
+
+class _FeedError extends ConsumerWidget {
+  const _FeedError({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.wifi_off_outlined,
+              size: 46,
+              color: AppColors.primaryGreen,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              friendlyErrorMessage(error, fallback: 'Could not load feed.'),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: () => ref.invalidate(socialHomeFeedProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReadMoreText extends StatefulWidget {
+  const _ReadMoreText({required this.text, this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  State<_ReadMoreText> createState() => _ReadMoreTextState();
+}
+
+class _ReadMoreTextState extends State<_ReadMoreText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLong = widget.text.length > 180;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LinkifiedText(
+          text: widget.text,
+          maxLines: _expanded || !isLong ? null : 5,
+          overflow: _expanded || !isLong
+              ? TextOverflow.clip
+              : TextOverflow.ellipsis,
+          style: widget.style,
+        ),
+        if (isLong)
+          TextButton(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(_expanded ? 'Show less' : 'Read more'),
+          ),
       ],
     );
   }

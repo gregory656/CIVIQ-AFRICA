@@ -1,4 +1,4 @@
-package com.example.civiqafrica
+package com.siviq.africa
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

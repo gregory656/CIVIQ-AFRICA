@@ -11,10 +11,17 @@ final cloudinaryServiceProvider = Provider<CloudinaryService>((ref) {
 });
 
 class CloudinaryService {
+  static const maxUploadBytes = 6 * 1024 * 1024;
+
   Future<String> uploadMedia(
     File file, {
     String folder = 'civiq/profiles',
   }) async {
+    final size = await file.length();
+    if (size > maxUploadBytes) {
+      throw Exception('Image is too large. Choose an image under 6 MB.');
+    }
+
     final uri = Uri.https(
       'api.cloudinary.com',
       '/v1_1/${Env.cloudinaryCloudName}/auto/upload',

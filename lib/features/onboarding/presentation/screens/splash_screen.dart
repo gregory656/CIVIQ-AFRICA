@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_assets.dart';
@@ -23,6 +24,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   void initState() {
     super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
@@ -32,12 +34,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       final session = ref.read(authRepositoryProvider).currentSession;
+      _restoreSystemUi();
       context.go(session == null ? '/intro' : '/home');
     });
   }
 
+  void _restoreSystemUi() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
   @override
   void dispose() {
+    _restoreSystemUi();
     _controller.dispose();
     super.dispose();
   }
