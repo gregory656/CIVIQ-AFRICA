@@ -16,7 +16,7 @@ class _IntroScreenState extends State<IntroScreen> {
   int _page = 0;
 
   final _slides = const [
-    ('Track development', 'Follow civic projects in your community.'),
+    ('Track development', 'Follow SIVIQ projects in your community.'),
     ('Hold leadership accountable', 'See progress, updates, and gaps clearly.'),
     ('Vote, report, engage', 'Take part responsibly and privately.'),
   ];

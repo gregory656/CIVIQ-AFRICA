@@ -76,7 +76,7 @@ class _PrivacyVisibilityScreenState
                 ),
                 _SwitchTile(
                   icon: Icons.volunteer_activism_outlined,
-                  title: 'Show civic engagement publicly',
+                  title: 'Show SIVIQ engagement publicly',
                   subtitle: 'Controls public activity visibility.',
                   value: _showActivity!,
                   onChanged: (value) => _save(showActivity: value),

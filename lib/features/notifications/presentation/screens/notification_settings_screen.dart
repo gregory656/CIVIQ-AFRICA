@@ -44,7 +44,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
               _SwitchTile(
                 icon: Icons.work_outline,
                 title: 'Project updates',
-                subtitle: 'Updates for civic project workflows.',
+                subtitle: 'Updates for SIVIQ project workflows.',
                 value: settings.projectUpdatesEnabled,
                 onChanged: (value) => _save(
                   context,

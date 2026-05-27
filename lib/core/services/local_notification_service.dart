@@ -11,7 +11,7 @@ class LocalNotificationService {
   static const _androidChannel = AndroidNotificationChannel(
     'siviq_alerts_default_v1',
     'SIVIQ Alerts',
-    description: 'Important SIVIQ account and civic updates.',
+    description: 'Important SIVIQ account and project updates.',
     importance: Importance.high,
     playSound: true,
   );
@@ -99,7 +99,7 @@ class LocalNotificationService {
         android: AndroidNotificationDetails(
           channelId,
           channelName,
-          channelDescription: 'Important SIVIQ account and civic updates.',
+          channelDescription: 'Important SIVIQ account and project updates.',
           importance: Importance.high,
           priority: Priority.high,
           playSound: !silent,

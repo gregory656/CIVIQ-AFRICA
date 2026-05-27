@@ -52,7 +52,7 @@ begin
   insert into public.notifications (user_id, title, body, category)
   values (
     new.id,
-    'Create your first civic project report.',
+    'Create your first SIVIQ project report.',
     'Engage your local leadership and track development near you.',
     'projects'
   )

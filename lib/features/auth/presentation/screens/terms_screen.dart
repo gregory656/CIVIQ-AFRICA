@@ -31,7 +31,7 @@ class _TermsScreenState extends State<TermsScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'SIVIQ is built for responsible civic participation. Please agree to the community rules before continuing.',
+                'SIVIQ is built for responsible SIVIQ participation. Please agree to the community rules before continuing.',
               ),
               const SizedBox(height: 24),
               Wrap(

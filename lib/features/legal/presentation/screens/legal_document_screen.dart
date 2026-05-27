@@ -62,12 +62,12 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Data We Collect',
             body:
-                'SIVIQ collects account details such as email, username, SIVIQ code, county, sub-county, profile image URL, and app activity needed to operate civic features.',
+                'SIVIQ collects account details such as email, username, SIVIQ code, county, sub-county, profile image URL, and app activity needed to operate SIVIQ features.',
           ),
           _LegalSection(
             title: 'Why We Collect It',
             body:
-                'We use this information to verify accounts, reduce abuse, personalize local civic content, secure your account, and support moderation, appeals, and recovery.',
+                'We use this information to verify accounts, reduce abuse, personalize local SIVIQ content, secure your account, and support moderation, appeals, and recovery.',
           ),
           _LegalSection(
             title: 'Location And Identity',
@@ -124,7 +124,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'What Is Allowed',
             body:
-                'Post real civic projects, photos, ratings, comments, and local observations. Keep discussion factual, local, and respectful.',
+                'Post real SIVIQ projects, photos, ratings, comments, and local observations. Keep discussion factual, local, and respectful.',
           ),
           _LegalSection(
             title: 'What Is Not Allowed',

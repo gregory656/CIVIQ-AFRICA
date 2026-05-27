@@ -19,6 +19,7 @@ import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../features/profile/data/security_repository.dart';
 import '../../../../features/profile/presentation/screens/social_list_screen.dart';
 import '../../../../features/projects/presentation/screens/projects_screen.dart';
+import '../../../../features/rankings/presentation/screens/rankings_screen.dart';
 import '../../../../shared/models/kenya_location.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -88,7 +89,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               ),
             ),
-      appBar: _index == 2 || _index == 3
+      appBar: _index == 1 || _index == 2 || _index == 3
           ? null
           : AppBar(
               titleSpacing: 0,
@@ -217,6 +218,10 @@ class _ShellBody extends ConsumerWidget {
 
     if (index == 2) {
       return const ProjectsScreen();
+    }
+
+    if (index == 1) {
+      return const RankingsScreen();
     }
 
     return Center(

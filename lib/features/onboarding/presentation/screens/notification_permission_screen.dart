@@ -36,7 +36,7 @@ class _NotificationPermissionScreenState
         );
         await LocalNotificationService.instance.show(
           id: 1002,
-          title: 'Create your first civic project report.',
+          title: 'Create your first SIVIQ project report.',
           body: 'Engage your local leadership and track development near you.',
         );
       } catch (_) {

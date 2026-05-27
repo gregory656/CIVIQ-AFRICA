@@ -1143,7 +1143,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.send_outlined),
-          label: Text(_submitting ? 'Submitting civic report...' : 'Submit'),
+          label: Text(_submitting ? 'Submitting SIVIQ report...' : 'Submit'),
         ),
       ],
     );
