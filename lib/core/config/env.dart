@@ -6,8 +6,6 @@ class Env {
   static String get cloudinaryCloudName => _required('CLOUDINARY_CLOUD_NAME');
   static String get cloudinaryUploadPreset =>
       _required('CLOUDINARY_UPLOAD_PRESET');
-  static String get cloudinaryApiKey =>
-      dotenv.maybeGet('CLOUDINARY_API_KEY') ?? '';
 
   static String _required(String key) {
     final value = dotenv.maybeGet(key);

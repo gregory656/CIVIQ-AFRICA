@@ -46,7 +46,7 @@ class PublicProfileScreen extends ConsumerWidget {
                       ),
                       if (profile.isVerified) ...[
                         const SizedBox(width: 5),
-                        const CiviqVerifiedBadge(size: 17),
+                        CiviqVerifiedBadge(size: 17, role: profile.role),
                       ],
                     ],
                   ),

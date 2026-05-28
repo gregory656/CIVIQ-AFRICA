@@ -3,17 +3,30 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
 class CiviqVerifiedBadge extends StatelessWidget {
-  const CiviqVerifiedBadge({super.key, this.size = 16});
+  const CiviqVerifiedBadge({super.key, this.size = 16, this.role});
 
   final double size;
+  final String? role;
 
   @override
   Widget build(BuildContext context) {
+    final color = switch (role) {
+      'super_admin' => const Color(0xFFD4A017),
+      'admin' => const Color(0xFFD4A017),
+      'moderator' => AppColors.dangerRed,
+      _ => const Color(0xFF0A66C2),
+    };
+    final message = switch (role) {
+      'super_admin' => 'SIVIQ super admin',
+      'admin' => 'SIVIQ admin',
+      'moderator' => 'SIVIQ moderator',
+      _ => 'Verified account',
+    };
     return Tooltip(
-      message: 'Verified account',
+      message: message,
       child: CustomPaint(
         size: Size.square(size),
-        painter: _VerifiedBadgePainter(),
+        painter: _VerifiedBadgePainter(color),
         child: SizedBox.square(
           dimension: size,
           child: Icon(Icons.check, size: size * 0.68, color: AppColors.white),
@@ -24,10 +37,14 @@ class CiviqVerifiedBadge extends StatelessWidget {
 }
 
 class _VerifiedBadgePainter extends CustomPainter {
+  const _VerifiedBadgePainter(this.color);
+
+  final Color color;
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF0A66C2)
+      ..color = color
       ..style = PaintingStyle.fill;
     final path = Path();
     final points = <Offset>[

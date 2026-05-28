@@ -317,7 +317,7 @@ class _ProfileConnectionTileState
           ),
           if (account.isVerified) ...[
             const SizedBox(width: 5),
-            const CiviqVerifiedBadge(size: 15),
+            CiviqVerifiedBadge(size: 15, role: account.role),
           ],
         ],
       ),

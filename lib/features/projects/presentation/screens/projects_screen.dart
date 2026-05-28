@@ -76,7 +76,9 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
   Widget build(BuildContext context) {
     final project = widget.project;
     final currentUserId = ref.watch(currentAuthUserIdProvider);
+    final profile = ref.watch(currentProfileProvider).asData?.value;
     final isOwner = currentUserId != null && currentUserId == project.creatorId;
+    final isModerator = profile?.canModerate ?? false;
     final imageUrl = project.imageUrl?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return Container(
@@ -120,7 +122,10 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
                 _VerificationBadge(status: project.verificationStatus),
                 IconButton(
                   tooltip: 'Project actions',
-                  onPressed: () => _showProjectActions(isOwner: isOwner),
+                  onPressed: () => _showProjectActions(
+                    isOwner: isOwner,
+                    isModerator: isModerator,
+                  ),
                   icon: const Icon(Icons.more_horiz),
                 ),
               ],
@@ -211,8 +216,15 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
     );
   }
 
-  Future<void> _showProjectActions({required bool isOwner}) async {
-    final action = await _showCenteredProjectActions(context, isOwner: isOwner);
+  Future<void> _showProjectActions({
+    required bool isOwner,
+    required bool isModerator,
+  }) async {
+    final action = await _showCenteredProjectActions(
+      context,
+      isOwner: isOwner,
+      isModerator: isModerator,
+    );
     if (!mounted || action == null) return;
     switch (action) {
       case 'open':
@@ -236,6 +248,15 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
         break;
       case 'delete':
         await _deleteProject();
+        break;
+      case 'moderate_remove':
+        await _moderateProject('removed');
+        break;
+      case 'moderate_review':
+        await _moderateProject('under_review');
+        break;
+      case 'moderate_suspend_creator':
+        await _suspendCreator();
         break;
     }
   }
@@ -428,6 +449,70 @@ class _ProjectFeedCardState extends ConsumerState<ProjectFeedCard> {
     }
   }
 
+  Future<void> _moderateProject(String status) async {
+    final reason = await _pickProjectModerationReason(context);
+    if (reason == null) return;
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .moderateProject(
+            projectId: widget.project.id,
+            status: status,
+            reason: reason,
+          );
+      ref.invalidate(projectsProvider);
+      ref.invalidate(localProjectFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Project marked $status')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              fallback: 'Could not moderate project.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _suspendCreator() async {
+    final creatorId = widget.project.creatorId;
+    if (creatorId == null) return;
+    final reason = await _pickProjectModerationReason(context);
+    if (reason == null) return;
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .moderateUserAccount(
+            userId: creatorId,
+            status: 'suspended',
+            reason: reason,
+            suspensionUntil: DateTime.now().toUtc().add(
+              const Duration(days: 7),
+            ),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Creator suspended for 7 days')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not suspend account.'),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _openComments() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -573,6 +658,7 @@ class _VerificationBadge extends StatelessWidget {
 Future<String?> _showCenteredProjectActions(
   BuildContext context, {
   required bool isOwner,
+  required bool isModerator,
 }) {
   return showGeneralDialog<String>(
     context: context,
@@ -656,6 +742,32 @@ Future<String?> _showCenteredProjectActions(
                       ),
                       onTap: () => Navigator.of(dialogContext).pop('report'),
                     ),
+                    if (isModerator) const Divider(height: 1),
+                    if (isModerator)
+                      ListTile(
+                        leading: const Icon(
+                          Icons.gpp_maybe_outlined,
+                          color: AppColors.dangerRed,
+                        ),
+                        title: const Text('Remove as moderator'),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop('moderate_remove'),
+                      ),
+                    if (isModerator)
+                      ListTile(
+                        leading: const Icon(Icons.policy_outlined),
+                        title: const Text('Send to review'),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop('moderate_review'),
+                      ),
+                    if (isModerator)
+                      ListTile(
+                        leading: const Icon(Icons.person_off_outlined),
+                        title: const Text('Suspend creator 7 days'),
+                        onTap: () => Navigator.of(
+                          dialogContext,
+                        ).pop('moderate_suspend_creator'),
+                      ),
                   ],
                 ),
               ),
@@ -674,6 +786,35 @@ Future<String?> _showCenteredProjectActions(
         child: FadeTransition(opacity: curved, child: child),
       );
     },
+  );
+}
+
+Future<String?> _pickProjectModerationReason(BuildContext context) async {
+  const reasons = [
+    'Hate speech',
+    'False information',
+    'Explicit content',
+    'Spam',
+    'Harassment',
+    'Impersonation',
+    'Violence or incitement',
+  ];
+  return showDialog<String>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: const Text('Moderation reason'),
+      children: [
+        for (final reason in reasons)
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(reason),
+            child: Text(reason),
+          ),
+        SimpleDialogOption(
+          onPressed: () => Navigator.of(context).pop('Other violation'),
+          child: const Text('Other violation'),
+        ),
+      ],
+    ),
   );
 }
 

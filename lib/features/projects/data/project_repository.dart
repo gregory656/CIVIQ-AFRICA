@@ -49,6 +49,7 @@ class CiviqProject {
     this.creatorUsername,
     this.creatorAvatarUrl,
     this.creatorIsVerified = false,
+    this.creatorRole = 'user',
   });
 
   final String id;
@@ -70,6 +71,7 @@ class CiviqProject {
   final String? creatorUsername;
   final String? creatorAvatarUrl;
   final bool creatorIsVerified;
+  final String creatorRole;
 
   factory CiviqProject.fromJson(Map<String, dynamic> json) {
     return CiviqProject(
@@ -95,6 +97,7 @@ class CiviqProject {
       creatorUsername: json['creator_username'] as String?,
       creatorAvatarUrl: json['creator_avatar_url'] as String?,
       creatorIsVerified: json['creator_is_verified'] as bool? ?? false,
+      creatorRole: json['creator_role'] as String? ?? 'user',
     );
   }
 }
@@ -114,6 +117,7 @@ class ProjectComment {
     this.authorUsername,
     this.authorAvatarUrl,
     this.authorIsVerified = false,
+    this.authorRole = 'user',
   });
 
   final String id;
@@ -126,6 +130,7 @@ class ProjectComment {
   final String? authorUsername;
   final String? authorAvatarUrl;
   final bool authorIsVerified;
+  final String authorRole;
   final int likeCount;
   final int replyCount;
   final bool viewerHasLiked;
@@ -149,6 +154,7 @@ class ProjectComment {
       authorUsername: json['author_username'] as String?,
       authorAvatarUrl: json['author_avatar_url'] as String?,
       authorIsVerified: json['author_is_verified'] as bool? ?? false,
+      authorRole: json['author_role'] as String? ?? 'user',
       likeCount: json['like_count'] as int? ?? 0,
       replyCount: json['reply_count'] as int? ?? 0,
       viewerHasLiked: json['viewer_has_liked'] as bool? ?? false,
@@ -267,6 +273,55 @@ class ProjectRepository {
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', projectId);
+  }
+
+  Future<void> moderateProject({
+    required String projectId,
+    required String status,
+    required String reason,
+  }) async {
+    await _client.rpc(
+      'moderate_project',
+      params: {
+        'target_project_id': projectId,
+        'new_status': status,
+        'reason': reason,
+      },
+    );
+  }
+
+  Future<void> moderateComment({
+    required String commentId,
+    required String status,
+    required String reason,
+  }) async {
+    await _client.rpc(
+      'moderate_project_comment',
+      params: {
+        'target_comment_id': commentId,
+        'new_status': status,
+        'reason': reason,
+      },
+    );
+  }
+
+  Future<void> moderateUserAccount({
+    required String userId,
+    required String status,
+    required String reason,
+    DateTime? suspensionUntil,
+    DateTime? mutedUntil,
+  }) async {
+    await _client.rpc(
+      'moderate_user_account',
+      params: {
+        'target_user_id': userId,
+        'new_status': status,
+        'reason': reason,
+        'until_at': suspensionUntil?.toUtc().toIso8601String(),
+        'mute_until_at': mutedUntil?.toUtc().toIso8601String(),
+      },
+    );
   }
 
   Future<void> voteProject(String projectId, bool isApproval) async {

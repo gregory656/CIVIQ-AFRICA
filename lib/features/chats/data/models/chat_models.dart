@@ -155,6 +155,7 @@ class GroupMember {
     this.username,
     this.avatarUrl,
     this.roleLabel,
+    this.role = 'user',
   });
 
   final String userId;
@@ -162,6 +163,7 @@ class GroupMember {
   final String? avatarUrl;
   final bool isVerified;
   final String? roleLabel;
+  final String role;
   final String memberRole;
   final DateTime joinedAt;
 
@@ -266,6 +268,7 @@ class ChatProfileResult {
     this.civiqCode,
     this.avatarUrl,
     this.roleLabel,
+    this.role = 'user',
   });
 
   final String id;
@@ -274,6 +277,7 @@ class ChatProfileResult {
   final String? avatarUrl;
   final bool isVerified;
   final String? roleLabel;
+  final String role;
 
   String get displayName {
     final value = username;
@@ -288,6 +292,7 @@ class ChatProfileResult {
       avatarUrl: json['avatar_url'] as String?,
       isVerified: json['is_verified'] as bool? ?? false,
       roleLabel: json['role_label'] as String?,
+      role: json['role'] as String? ?? 'user',
     );
   }
 }

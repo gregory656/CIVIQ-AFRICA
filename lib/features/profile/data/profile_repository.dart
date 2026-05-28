@@ -52,6 +52,10 @@ class CiviqProfile {
     this.isVerified = false,
     this.verificationType,
     this.roleLabel,
+    this.role = 'user',
+    this.accountStatus = 'active',
+    this.suspensionUntil,
+    this.mutedUntil,
     this.followersCount = 0,
     this.followingCount = 0,
   });
@@ -72,8 +76,24 @@ class CiviqProfile {
   final bool isVerified;
   final String? verificationType;
   final String? roleLabel;
+  final String role;
+  final String accountStatus;
+  final DateTime? suspensionUntil;
+  final DateTime? mutedUntil;
   final int followersCount;
   final int followingCount;
+
+  bool get canModerate =>
+      role == 'moderator' || role == 'admin' || role == 'super_admin';
+
+  bool get isRestricted {
+    if (accountStatus == 'banned' || accountStatus == 'under_review') {
+      return true;
+    }
+    if (accountStatus != 'suspended') return false;
+    final until = suspensionUntil;
+    return until == null || until.isAfter(DateTime.now().toUtc());
+  }
 
   factory CiviqProfile.fromJson(Map<String, dynamic> json) {
     return CiviqProfile(
@@ -93,6 +113,12 @@ class CiviqProfile {
       isVerified: json['is_verified'] as bool? ?? false,
       verificationType: json['verification_type'] as String?,
       roleLabel: json['role_label'] as String?,
+      role: json['role'] as String? ?? 'user',
+      accountStatus: json['account_status'] as String? ?? 'active',
+      suspensionUntil: DateTime.tryParse(
+        json['suspension_until'] as String? ?? '',
+      ),
+      mutedUntil: DateTime.tryParse(json['muted_until'] as String? ?? ''),
       followersCount: json['followers_count'] as int? ?? 0,
       followingCount: json['following_count'] as int? ?? 0,
     );
@@ -107,6 +133,7 @@ class ProfileConnection {
     required this.avatarUrl,
     required this.isVerified,
     required this.roleLabel,
+    this.role = 'user',
     this.isFollowed = false,
   });
 
@@ -116,6 +143,7 @@ class ProfileConnection {
   final String? avatarUrl;
   final bool isVerified;
   final String? roleLabel;
+  final String role;
   final bool isFollowed;
 
   factory ProfileConnection.fromJson(Map<String, dynamic> json) {
@@ -126,6 +154,7 @@ class ProfileConnection {
       avatarUrl: json['avatar_url'] as String?,
       isVerified: json['is_verified'] as bool? ?? false,
       roleLabel: json['role_label'] as String?,
+      role: json['role'] as String? ?? 'user',
       isFollowed: json['is_followed'] as bool? ?? false,
     );
   }
@@ -138,6 +167,7 @@ class ProfileConnection {
       avatarUrl: avatarUrl,
       isVerified: isVerified,
       roleLabel: roleLabel,
+      role: role,
       isFollowed: isFollowed ?? this.isFollowed,
     );
   }
@@ -152,7 +182,7 @@ class ProfileRepository {
     final response = await _client
         .from('profiles')
         .select(
-          'id,email,username,civiq_code,bio,avatar_url,county_id,subcounty_id,is_public,show_online_status,show_read_receipts,allow_message_requests,show_activity,is_verified,verification_type,role_label',
+          'id,email,username,civiq_code,bio,avatar_url,county_id,subcounty_id,is_public,show_online_status,show_read_receipts,allow_message_requests,show_activity,is_verified,verification_type,role_label,role,account_status,suspension_until,muted_until',
         )
         .eq('id', userId)
         .maybeSingle();
@@ -182,7 +212,7 @@ class ProfileRepository {
     final response = await _client
         .from('follows')
         .select(
-          'follower:profiles!follows_follower_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label)',
+          'follower:profiles!follows_follower_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label,role)',
         )
         .eq('following_id', userId)
         .order('created_at', ascending: false);
@@ -199,7 +229,7 @@ class ProfileRepository {
     final response = await _client
         .from('follows')
         .select(
-          'following:profiles!follows_following_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label)',
+          'following:profiles!follows_following_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label,role)',
         )
         .eq('follower_id', userId)
         .order('created_at', ascending: false);

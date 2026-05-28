@@ -302,7 +302,7 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
           ),
           if (profile.isVerified) ...[
             const SizedBox(width: 5),
-            const CiviqVerifiedBadge(size: 15),
+            CiviqVerifiedBadge(size: 15, role: profile.role),
           ],
         ],
       ),
@@ -479,7 +479,9 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
   Widget build(BuildContext context) {
     final post = widget.post;
     final currentUserId = ref.watch(currentAuthUserIdProvider);
+    final profile = ref.watch(currentProfileProvider).asData?.value;
     final isOwner = currentUserId != null && currentUserId == post.authorId;
+    final isModerator = profile?.canModerate ?? false;
     return RepaintBoundary(
       key: _captureKey,
       child: Stack(
@@ -529,7 +531,10 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
                                       ),
                                       if (post.authorIsVerified) ...[
                                         const SizedBox(width: 4),
-                                        const CiviqVerifiedBadge(size: 15),
+                                        CiviqVerifiedBadge(
+                                          size: 15,
+                                          role: post.authorRole,
+                                        ),
                                       ],
                                     ],
                                   ),
@@ -545,8 +550,10 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
                             ),
                             IconButton(
                               tooltip: 'More',
-                              onPressed: () =>
-                                  _showPostActions(isOwner: isOwner),
+                              onPressed: () => _showPostActions(
+                                isOwner: isOwner,
+                                isModerator: isModerator,
+                              ),
                               icon: const Icon(Icons.more_horiz),
                             ),
                           ],
@@ -641,10 +648,14 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
     ref.invalidate(socialHomeFeedProvider);
   }
 
-  Future<void> _showPostActions({required bool isOwner}) async {
+  Future<void> _showPostActions({
+    required bool isOwner,
+    required bool isModerator,
+  }) async {
     final action = await _showCenteredPostActions(
       context: context,
       isOwner: isOwner,
+      isModerator: isModerator,
     );
     if (!mounted) return;
     if (action == 'save') await _saveWatermarkedPost();
@@ -653,6 +664,9 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
     if (action == 'report') await _reportPost();
     if (action == 'hide') await _hidePost();
     if (action == 'block') await _blockPost();
+    if (action == 'moderate_remove') await _moderatePost('removed');
+    if (action == 'moderate_review') await _moderatePost('under_review');
+    if (action == 'moderate_suspend_author') await _suspendAuthor();
   }
 
   void _openExpandedPost() {
@@ -882,6 +896,62 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
   Future<void> _blockPost() async {
     await _hidePost();
   }
+
+  Future<void> _moderatePost(String status) async {
+    final reason = await _pickModerationReason(context);
+    if (reason == null) return;
+    try {
+      await ref
+          .read(socialPostRepositoryProvider)
+          .moderatePost(postId: widget.post.id, status: status, reason: reason);
+      ref.invalidate(socialHomeFeedProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Post marked $status')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not moderate post.'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _suspendAuthor() async {
+    final authorId = widget.post.authorId;
+    if (authorId == null) return;
+    final reason = await _pickModerationReason(context);
+    if (reason == null) return;
+    try {
+      await ref
+          .read(socialPostRepositoryProvider)
+          .moderateUserAccount(
+            userId: authorId,
+            status: 'suspended',
+            reason: reason,
+            suspensionUntil: DateTime.now().toUtc().add(
+              const Duration(days: 7),
+            ),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Author suspended for 7 days')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not suspend account.'),
+          ),
+        ),
+      );
+    }
+  }
 }
 
 class SocialPostDetailScreen extends StatelessWidget {
@@ -918,7 +988,7 @@ class SocialPostDetailScreen extends StatelessWidget {
                           ),
                           if (post.authorIsVerified) ...[
                             const SizedBox(width: 4),
-                            const CiviqVerifiedBadge(size: 15),
+                            CiviqVerifiedBadge(size: 15, role: post.authorRole),
                           ],
                         ],
                       ),
@@ -992,6 +1062,7 @@ class _WatermarkPill extends StatelessWidget {
 Future<String?> _showCenteredPostActions({
   required BuildContext context,
   required bool isOwner,
+  required bool isModerator,
 }) {
   return showGeneralDialog<String>(
     context: context,
@@ -1074,6 +1145,32 @@ Future<String?> _showCenteredPostActions({
                         ),
                         onTap: () => Navigator.of(dialogContext).pop('delete'),
                       ),
+                    if (isModerator) const Divider(height: 1),
+                    if (isModerator)
+                      ListTile(
+                        leading: const Icon(
+                          Icons.gpp_maybe_outlined,
+                          color: AppColors.dangerRed,
+                        ),
+                        title: const Text('Remove as moderator'),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop('moderate_remove'),
+                      ),
+                    if (isModerator)
+                      ListTile(
+                        leading: const Icon(Icons.policy_outlined),
+                        title: const Text('Send to review'),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop('moderate_review'),
+                      ),
+                    if (isModerator)
+                      ListTile(
+                        leading: const Icon(Icons.person_off_outlined),
+                        title: const Text('Suspend author 7 days'),
+                        onTap: () => Navigator.of(
+                          dialogContext,
+                        ).pop('moderate_suspend_author'),
+                      ),
                   ],
                 ),
               ),
@@ -1092,6 +1189,35 @@ Future<String?> _showCenteredPostActions({
         child: FadeTransition(opacity: curved, child: child),
       );
     },
+  );
+}
+
+Future<String?> _pickModerationReason(BuildContext context) async {
+  const reasons = [
+    'Hate speech',
+    'False information',
+    'Explicit content',
+    'Spam',
+    'Harassment',
+    'Impersonation',
+    'Violence or incitement',
+  ];
+  return showDialog<String>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: const Text('Moderation reason'),
+      children: [
+        for (final reason in reasons)
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(reason),
+            child: Text(reason),
+          ),
+        SimpleDialogOption(
+          onPressed: () => Navigator.of(context).pop('Other violation'),
+          child: const Text('Other violation'),
+        ),
+      ],
+    ),
   );
 }
 

@@ -151,7 +151,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
                               ),
                               if (item.isVerified) ...[
                                 const SizedBox(width: 4),
-                                const CiviqVerifiedBadge(size: 15),
+                                CiviqVerifiedBadge(size: 15, role: item.role),
                               ],
                             ],
                           ),

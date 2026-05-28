@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../features/auth/data/auth_repository.dart';
+import '../../../profile/data/profile_repository.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -31,9 +32,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     )..forward();
     _fall = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    Timer(const Duration(seconds: 2), () {
+    Timer(const Duration(seconds: 2), () async {
       if (!mounted) return;
       final session = ref.read(authRepositoryProvider).currentSession;
+      if (session != null) {
+        final profile = await ref
+            .read(currentProfileProvider.future)
+            .catchError((_) => null);
+        if (!mounted) return;
+        if (profile?.isRestricted ?? false) {
+          _restoreSystemUi();
+          context.go('/settings/account-status');
+          return;
+        }
+      }
       _restoreSystemUi();
       context.go(session == null ? '/intro' : '/home');
     });

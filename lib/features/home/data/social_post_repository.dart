@@ -39,6 +39,7 @@ class SocialPost {
     this.authorUsername,
     this.authorAvatarUrl,
     this.authorIsVerified = false,
+    this.authorRole = 'user',
   });
 
   final String id;
@@ -53,6 +54,7 @@ class SocialPost {
   final String? authorUsername;
   final String? authorAvatarUrl;
   final bool authorIsVerified;
+  final String authorRole;
 
   String get displayName {
     final username = authorUsername;
@@ -75,6 +77,7 @@ class SocialPost {
       authorUsername: json['author_username'] as String?,
       authorAvatarUrl: json['author_avatar_url'] as String?,
       authorIsVerified: json['author_is_verified'] as bool? ?? false,
+      authorRole: json['author_role'] as String? ?? 'user',
     );
   }
 }
@@ -94,6 +97,7 @@ class SocialComment {
     this.authorUsername,
     this.authorAvatarUrl,
     this.authorIsVerified = false,
+    this.authorRole = 'user',
   });
 
   final String id;
@@ -106,6 +110,7 @@ class SocialComment {
   final String? authorUsername;
   final String? authorAvatarUrl;
   final bool authorIsVerified;
+  final String authorRole;
   final int likeCount;
   final int replyCount;
   final bool viewerHasLiked;
@@ -129,6 +134,7 @@ class SocialComment {
       authorUsername: json['author_username'] as String?,
       authorAvatarUrl: json['author_avatar_url'] as String?,
       authorIsVerified: json['author_is_verified'] as bool? ?? false,
+      authorRole: json['author_role'] as String? ?? 'user',
       likeCount: json['like_count'] as int? ?? 0,
       replyCount: json['reply_count'] as int? ?? 0,
       viewerHasLiked: json['viewer_has_liked'] as bool? ?? false,
@@ -163,7 +169,7 @@ class SocialPostRepository {
     final pattern = '%${query.replaceAll('%', '').replaceAll('_', '')}%';
     final profileRows = await _client
         .from('profiles')
-        .select('id,username,civiq_code,avatar_url,is_verified,role_label')
+        .select('id,username,civiq_code,avatar_url,is_verified,role_label,role')
         .or(
           'username.ilike.$pattern,bio.ilike.$pattern,civiq_code.ilike.$pattern',
         )
@@ -231,6 +237,55 @@ class SocialPostRepository {
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', postId);
+  }
+
+  Future<void> moderatePost({
+    required String postId,
+    required String status,
+    required String reason,
+  }) async {
+    await _client.rpc(
+      'moderate_social_post',
+      params: {
+        'target_post_id': postId,
+        'new_status': status,
+        'reason': reason,
+      },
+    );
+  }
+
+  Future<void> moderateComment({
+    required String commentId,
+    required String status,
+    required String reason,
+  }) async {
+    await _client.rpc(
+      'moderate_social_comment',
+      params: {
+        'target_comment_id': commentId,
+        'new_status': status,
+        'reason': reason,
+      },
+    );
+  }
+
+  Future<void> moderateUserAccount({
+    required String userId,
+    required String status,
+    required String reason,
+    DateTime? suspensionUntil,
+    DateTime? mutedUntil,
+  }) async {
+    await _client.rpc(
+      'moderate_user_account',
+      params: {
+        'target_user_id': userId,
+        'new_status': status,
+        'reason': reason,
+        'until_at': suspensionUntil?.toUtc().toIso8601String(),
+        'mute_until_at': mutedUntil?.toUtc().toIso8601String(),
+      },
+    );
   }
 
   Future<void> reportPost(String postId, String reason) async {

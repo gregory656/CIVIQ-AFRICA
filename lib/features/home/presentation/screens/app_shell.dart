@@ -326,6 +326,7 @@ class _ProfileTab extends ConsumerWidget {
             child: _VerifiedName(
               displayName: displayName,
               isVerified: profile?.isVerified ?? false,
+              role: profile?.role,
             ),
           ),
           if (profile?.roleLabel?.isNotEmpty == true) ...[
@@ -419,10 +420,15 @@ class _ProfileTab extends ConsumerWidget {
 }
 
 class _VerifiedName extends StatelessWidget {
-  const _VerifiedName({required this.displayName, required this.isVerified});
+  const _VerifiedName({
+    required this.displayName,
+    required this.isVerified,
+    this.role,
+  });
 
   final String displayName;
   final bool isVerified;
+  final String? role;
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +447,7 @@ class _VerifiedName extends StatelessWidget {
         ),
         if (isVerified) ...[
           const SizedBox(width: 5),
-          const CiviqVerifiedBadge(size: 17),
+          CiviqVerifiedBadge(size: 17, role: role),
         ],
       ],
     );
