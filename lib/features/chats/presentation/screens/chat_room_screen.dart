@@ -111,9 +111,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final subtitle = _typingUserIds.isNotEmpty
         ? 'typing...'
         : headerConversation?.type == ConversationType.self
-        ? (currentProfile?.username?.isNotEmpty == true
-              ? '@${currentProfile!.username} (You)'
-              : 'You')
+        ? '${currentProfile?.handle ?? 'You'} (You)'
+        : headerConversation?.type == ConversationType.direct
+        ? [
+            headerConversation?.peerHandle ?? '',
+            _statusLabel(headerConversation),
+          ].where((item) => item.isNotEmpty).join(' | ')
         : _statusLabel(headerConversation);
     final avatarUrl = selfChat
         ? currentProfile?.avatarUrl
@@ -177,7 +180,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       ),
                       if (headerConversation?.peerIsVerified == true) ...[
                         const SizedBox(width: 4),
-                        const CiviqVerifiedBadge(size: 14),
+                        CiviqVerifiedBadge(
+                          size: 14,
+                          role: headerConversation?.peerRole,
+                        ),
                       ],
                     ],
                   ),

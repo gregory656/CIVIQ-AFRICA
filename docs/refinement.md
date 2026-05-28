@@ -156,7 +156,7 @@ Contact details:
 
 ```text
 WhatsApp: +254719637416
-Email: gregorysteve656@gmail.com
+Email: adminsiviq@gmail.com
 ```
 
 ## 7. FAQ Page Content
@@ -220,7 +220,7 @@ Contact details:
 
 ```text
 WhatsApp: +254719637416
-Email: gregorysteve656@gmail.com
+Email: adminsiviq@gmail.com
 ```
 
 ## 10. Home Post Three-Dot Menu

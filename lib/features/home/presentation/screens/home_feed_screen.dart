@@ -285,9 +285,6 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
   @override
   Widget build(BuildContext context) {
     final profile = widget.profile;
-    final name = profile.username?.isNotEmpty == true
-        ? '@${profile.username}'
-        : 'SIVIQ Member';
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       leading: _Avatar(url: profile.avatarUrl),
@@ -295,7 +292,7 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
         children: [
           Flexible(
             child: Text(
-              name,
+              profile.primaryName,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
@@ -306,23 +303,34 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
           ],
         ],
       ),
-      subtitle: Text(profile.roleLabel ?? profile.civiqCode ?? 'SIVIQ profile'),
+      subtitle: Text(
+        '${profile.handle} | ${profile.civiqCode ?? profile.roleLabel ?? 'SIVIQ profile'}',
+      ),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => PublicProfileScreen(profileId: profile.id),
         ),
       ),
       trailing: SizedBox(
-        width: 94,
+        width: 112,
         child: FilledButton(
-          onPressed: _saving || _following ? null : _follow,
+          onPressed: _saving
+              ? null
+              : () => (_following || profile.isFollowed)
+                    ? _unfollow()
+                    : _follow(),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 40),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               _saving
-                  ? 'Following...'
+                  ? 'Saving...'
                   : _following || profile.isFollowed
-                  ? 'Following'
+                  ? 'Unfollow'
                   : 'Follow',
             ),
           ),
@@ -350,6 +358,36 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
         SnackBar(
           content: Text(
             friendlyErrorMessage(error, fallback: 'Could not follow profile.'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _unfollow() async {
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    if (currentUserId == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(profileRepositoryProvider)
+          .unfollowProfile(currentUserId, widget.profile.id);
+      if (!mounted) return;
+      setState(() {
+        _following = false;
+        _saving = false;
+      });
+      ref.invalidate(currentProfileProvider);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              fallback: 'Could not unfollow profile.',
+            ),
           ),
         ),
       );
@@ -539,7 +577,7 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
                                     ],
                                   ),
                                   Text(
-                                    _timeAgo(post.createdAt),
+                                    '${post.authorHandle} | ${_timeAgo(post.createdAt)}',
                                     style: const TextStyle(
                                       color: AppColors.grey,
                                       fontSize: 12,
@@ -993,7 +1031,7 @@ class SocialPostDetailScreen extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        _timeAgo(post.createdAt),
+                        '${post.authorHandle} | ${_timeAgo(post.createdAt)}',
                         style: const TextStyle(
                           color: AppColors.grey,
                           fontSize: 12,

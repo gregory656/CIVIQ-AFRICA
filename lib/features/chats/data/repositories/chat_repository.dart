@@ -218,7 +218,7 @@ class ChatRepository {
   Future<List<GroupMember>> fetchGroupMembers(String conversationId) async {
     final response = await _client.rpc(
       'list_group_members',
-      params: {'target_conversation_id': conversationId, 'result_limit': 100},
+      params: {'target_conversation_id': conversationId, 'result_limit': 40},
     );
     return (response as List)
         .map(

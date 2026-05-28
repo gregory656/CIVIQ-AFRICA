@@ -18,6 +18,7 @@ class ProfileSetupScreen extends ConsumerStatefulWidget {
 
 class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _displayNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _bioController = TextEditingController();
   KenyaCounty? _county;
@@ -28,6 +29,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
   @override
   void dispose() {
+    _displayNameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
     super.dispose();
@@ -43,6 +45,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
     try {
       final profileRepo = ref.read(profileRepositoryProvider);
+      final displayName = _displayNameController.text.trim().replaceAll(
+        RegExp(r'\s+'),
+        ' ',
+      );
       final username = _usernameController.text.trim();
       if (await profileRepo.isUsernameTaken(username)) {
         setState(
@@ -62,6 +68,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       await profileRepo.upsertProfile(
         userId: user.id,
         email: user.email ?? '',
+        displayName: displayName,
         username: username,
         bio: _bioController.text.trim(),
         countyId: _county!.id,
@@ -91,6 +98,22 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                TextFormField(
+                  controller: _displayNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Display name',
+                    hintText: 'Gregory Steve',
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                  inputFormatters: [LengthLimitingTextInputFormatter(80)],
+                  validator: (value) {
+                    return ref
+                        .read(profileRepositoryProvider)
+                        .displayNameValidationMessage(value ?? '');
+                  },
+                ),
+                const SizedBox(height: 14),
                 TextFormField(
                   controller: _usernameController,
                   decoration: const InputDecoration(

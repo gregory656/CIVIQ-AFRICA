@@ -223,11 +223,13 @@ class _MemberTile extends ConsumerWidget {
           ),
           if (member.isVerified) ...[
             const SizedBox(width: 4),
-            const CiviqVerifiedBadge(size: 15),
+            CiviqVerifiedBadge(size: 15, role: member.role),
           ],
         ],
       ),
-      subtitle: Text(member.roleLabel ?? ''),
+      subtitle: Text(
+        '${member.handle}${member.roleLabel == null ? '' : ' | ${member.roleLabel}'}',
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -363,7 +365,11 @@ class _AddMembersSheetState extends ConsumerState<_AddMembersSheet> {
             },
       secondary: ChatAvatar(imageUrl: item.avatarUrl),
       title: Text(item.displayName),
-      subtitle: Text(alreadyMember ? 'Already in group' : item.civiqCode ?? ''),
+      subtitle: Text(
+        alreadyMember
+            ? 'Already in group'
+            : '${item.handle} | ${item.civiqCode ?? item.roleLabel ?? ''}',
+      ),
     );
   }
 

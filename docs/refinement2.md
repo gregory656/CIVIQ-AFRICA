@@ -41,6 +41,9 @@ Date: 2026-05-28
 - Promoted `adminsiviq@gmail.com` to `super_admin`.
 - Promoted `gregorystephen2006@gmail.com` to `moderator`.
 - Exposed profile roles in feed/search/chat profile RPC outputs so badges can render correctly.
+- Added `profiles.display_name` so users can show a human name such as `Gregory Steve` while keeping `@username` and SIVIQ code for identity.
+- Updated profile setup and edit profile so users can create/update display names.
+- Updated major profile, search, feed, chat, and group member surfaces to show display name first, badge beside display name, and username underneath or in secondary text.
 
 ## What This Means
 

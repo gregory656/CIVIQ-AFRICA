@@ -299,10 +299,6 @@ class _ProfileConnectionTileState
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
-    final username = account.username?.isNotEmpty == true
-        ? '@${account.username}'
-        : 'SIVIQ Member';
-
     return ListTile(
       leading: _ConnectionAvatar(url: account.avatarUrl),
       title: Row(
@@ -310,7 +306,7 @@ class _ProfileConnectionTileState
         children: [
           Flexible(
             child: Text(
-              username,
+              account.primaryName,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
@@ -321,10 +317,10 @@ class _ProfileConnectionTileState
           ],
         ],
       ),
-      subtitle: Text(_subtitleFor(account)),
+      subtitle: Text('${account.handle} | ${_subtitleFor(account)}'),
       trailing: widget.showFollowButton
           ? SizedBox(
-              width: 98,
+              width: 116,
               height: 40,
               child: FilledButton(
                 style: FilledButton.styleFrom(
@@ -334,14 +330,16 @@ class _ProfileConnectionTileState
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                onPressed: _saving || _following ? null : _follow,
+                onPressed: _saving
+                    ? null
+                    : () => _following ? _unfollow() : _follow(),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     _saving
-                        ? 'Following...'
+                        ? 'Saving...'
                         : _following
-                        ? 'Following'
+                        ? 'Unfollow'
                         : 'Follow',
                   ),
                 ),
@@ -381,6 +379,33 @@ class _ProfileConnectionTileState
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not follow account: $error')),
+      );
+    }
+  }
+
+  Future<void> _unfollow() async {
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    if (currentUserId == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(profileRepositoryProvider)
+          .unfollowProfile(currentUserId, widget.account.id);
+      if (!mounted) return;
+      setState(() {
+        _following = false;
+        _saving = false;
+      });
+      ref.invalidate(currentProfileProvider);
+      final refreshProfileId = widget.refreshProfileId;
+      if (refreshProfileId != null) {
+        ref.invalidate(followingScreenDataProvider(refreshProfileId));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not unfollow account: $error')),
       );
     }
   }

@@ -38,6 +38,7 @@ class CiviqProfile {
   const CiviqProfile({
     required this.id,
     required this.email,
+    this.displayName,
     this.username,
     this.civiqCode,
     this.bio,
@@ -62,6 +63,7 @@ class CiviqProfile {
 
   final String id;
   final String email;
+  final String? displayName;
   final String? username;
   final String? civiqCode;
   final String? bio;
@@ -83,6 +85,19 @@ class CiviqProfile {
   final int followersCount;
   final int followingCount;
 
+  String get primaryName {
+    final name = displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final handle = username?.trim();
+    if (handle != null && handle.isNotEmpty) return '@$handle';
+    return 'SIVIQ Member';
+  }
+
+  String get handle {
+    final value = username?.trim();
+    return value == null || value.isEmpty ? 'No username' : '@$value';
+  }
+
   bool get canModerate =>
       role == 'moderator' || role == 'admin' || role == 'super_admin';
 
@@ -99,6 +114,7 @@ class CiviqProfile {
     return CiviqProfile(
       id: json['id'] as String,
       email: json['email'] as String? ?? '',
+      displayName: json['display_name'] as String?,
       username: json['username'] as String?,
       civiqCode: json['civiq_code'] as String?,
       bio: json['bio'] as String?,
@@ -128,6 +144,7 @@ class CiviqProfile {
 class ProfileConnection {
   const ProfileConnection({
     required this.id,
+    required this.displayName,
     required this.username,
     required this.civiqCode,
     required this.avatarUrl,
@@ -138,6 +155,7 @@ class ProfileConnection {
   });
 
   final String id;
+  final String? displayName;
   final String? username;
   final String? civiqCode;
   final String? avatarUrl;
@@ -146,9 +164,23 @@ class ProfileConnection {
   final String role;
   final bool isFollowed;
 
+  String get primaryName {
+    final name = displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final handle = username?.trim();
+    if (handle != null && handle.isNotEmpty) return '@$handle';
+    return 'SIVIQ Member';
+  }
+
+  String get handle {
+    final value = username?.trim();
+    return value == null || value.isEmpty ? 'No username' : '@$value';
+  }
+
   factory ProfileConnection.fromJson(Map<String, dynamic> json) {
     return ProfileConnection(
       id: json['id'] as String,
+      displayName: json['display_name'] as String?,
       username: json['username'] as String?,
       civiqCode: json['civiq_code'] as String?,
       avatarUrl: json['avatar_url'] as String?,
@@ -162,6 +194,7 @@ class ProfileConnection {
   ProfileConnection copyWith({bool? isFollowed}) {
     return ProfileConnection(
       id: id,
+      displayName: displayName,
       username: username,
       civiqCode: civiqCode,
       avatarUrl: avatarUrl,
@@ -180,20 +213,10 @@ class ProfileRepository {
 
   Future<CiviqProfile?> getProfile(String userId) async {
     final response = await _client
-        .from('profiles')
-        .select(
-          'id,email,username,civiq_code,bio,avatar_url,county_id,subcounty_id,is_public,show_online_status,show_read_receipts,allow_message_requests,show_activity,is_verified,verification_type,role_label,role,account_status,suspension_until,muted_until',
-        )
-        .eq('id', userId)
+        .rpc('get_profile_summary', params: {'target_user_id': userId})
         .maybeSingle();
-
     if (response == null) return null;
-    final profile = Map<String, dynamic>.from(response);
-    final counts = await socialCounts(userId);
-    profile
-      ..['followers_count'] = counts.followers
-      ..['following_count'] = counts.following;
-    return CiviqProfile.fromJson(profile);
+    return CiviqProfile.fromJson(Map<String, dynamic>.from(response));
   }
 
   Future<ProfileSocialCounts> socialCounts(String userId) async {
@@ -212,7 +235,7 @@ class ProfileRepository {
     final response = await _client
         .from('follows')
         .select(
-          'follower:profiles!follows_follower_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label,role)',
+          'follower:profiles!follows_follower_id_fkey(id,display_name,username,civiq_code,avatar_url,is_verified,role_label,role)',
         )
         .eq('following_id', userId)
         .order('created_at', ascending: false);
@@ -229,7 +252,7 @@ class ProfileRepository {
     final response = await _client
         .from('follows')
         .select(
-          'following:profiles!follows_following_id_fkey(id,username,civiq_code,avatar_url,is_verified,role_label,role)',
+          'following:profiles!follows_following_id_fkey(id,display_name,username,civiq_code,avatar_url,is_verified,role_label,role)',
         )
         .eq('follower_id', userId)
         .order('created_at', ascending: false);
@@ -284,6 +307,7 @@ class ProfileRepository {
   Future<void> upsertProfile({
     required String userId,
     required String email,
+    String? displayName,
     String? username,
     String? bio,
     int? countyId,
@@ -296,6 +320,7 @@ class ProfileRepository {
       'email': email,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
+    if (displayName != null) payload['display_name'] = displayName;
     if (username != null) payload['username'] = username;
     if (bio != null) payload['bio'] = bio;
     if (countyId != null) payload['county_id'] = countyId;
@@ -328,6 +353,16 @@ class ProfileRepository {
     }
     if (isReservedUsername(normalized)) {
       return 'This username is reserved by SIVIQ.';
+    }
+    return null;
+  }
+
+  String? displayNameValidationMessage(String displayName) {
+    final normalized = displayName.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.length < 2) return 'Use at least 2 characters.';
+    if (normalized.length > 80) return 'Use 80 characters or fewer.';
+    if (RegExp(r'[\r\n\t]').hasMatch(normalized)) {
+      return 'Use a single-line name.';
     }
     return null;
   }

@@ -156,7 +156,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
                             ],
                           ),
                           subtitle: Text(
-                            item.civiqCode ?? item.roleLabel ?? '',
+                            '${item.handle} | ${item.civiqCode ?? item.roleLabel ?? ''}',
                           ),
                           onChanged: (_) => _toggleMember(item),
                         );

@@ -46,6 +46,7 @@ class CiviqProject {
     this.subcountyName,
     this.locationName,
     this.imageUrl,
+    this.creatorDisplayName,
     this.creatorUsername,
     this.creatorAvatarUrl,
     this.creatorIsVerified = false,
@@ -68,6 +69,7 @@ class CiviqProject {
   final int disapprovalCount;
   final int commentCount;
   final DateTime createdAt;
+  final String? creatorDisplayName;
   final String? creatorUsername;
   final String? creatorAvatarUrl;
   final bool creatorIsVerified;
@@ -94,6 +96,7 @@ class CiviqProject {
       createdAt:
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.now(),
+      creatorDisplayName: json['creator_display_name'] as String?,
       creatorUsername: json['creator_username'] as String?,
       creatorAvatarUrl: json['creator_avatar_url'] as String?,
       creatorIsVerified: json['creator_is_verified'] as bool? ?? false,
@@ -114,6 +117,7 @@ class ProjectComment {
     this.parentCommentId,
     this.authorId,
     this.editedAt,
+    this.authorDisplayName,
     this.authorUsername,
     this.authorAvatarUrl,
     this.authorIsVerified = false,
@@ -127,6 +131,7 @@ class ProjectComment {
   final String body;
   final DateTime createdAt;
   final DateTime? editedAt;
+  final String? authorDisplayName;
   final String? authorUsername;
   final String? authorAvatarUrl;
   final bool authorIsVerified;
@@ -136,8 +141,15 @@ class ProjectComment {
   final bool viewerHasLiked;
 
   String get displayName {
+    final name = authorDisplayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
     final username = authorUsername;
     return username == null || username.isEmpty ? 'SIVIQ Member' : '@$username';
+  }
+
+  String get authorHandle {
+    final username = authorUsername?.trim();
+    return username == null || username.isEmpty ? 'No username' : '@$username';
   }
 
   factory ProjectComment.fromJson(Map<String, dynamic> json) {
@@ -151,6 +163,7 @@ class ProjectComment {
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.now(),
       editedAt: DateTime.tryParse(json['edited_at'] as String? ?? ''),
+      authorDisplayName: json['author_display_name'] as String?,
       authorUsername: json['author_username'] as String?,
       authorAvatarUrl: json['author_avatar_url'] as String?,
       authorIsVerified: json['author_is_verified'] as bool? ?? false,

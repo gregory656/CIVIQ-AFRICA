@@ -36,6 +36,7 @@ class ChatConversation {
     this.groupMemberSummary,
     this.currentUserRole,
     this.peerId,
+    this.peerDisplayName,
     this.peerUsername,
     this.peerAvatarUrl,
     this.peerIsVerified = false,
@@ -43,6 +44,7 @@ class ChatConversation {
     this.peerLastSeen,
     this.peerShowOnlineStatus = true,
     this.peerRoleLabel,
+    this.peerRole = 'user',
   });
 
   final String id;
@@ -66,6 +68,7 @@ class ChatConversation {
   final String? groupMemberSummary;
   final String? currentUserRole;
   final String? peerId;
+  final String? peerDisplayName;
   final String? peerUsername;
   final String? peerAvatarUrl;
   final bool peerIsVerified;
@@ -73,14 +76,22 @@ class ChatConversation {
   final DateTime? peerLastSeen;
   final bool peerShowOnlineStatus;
   final String? peerRoleLabel;
+  final String peerRole;
 
   String displayTitle(String? currentUsername) {
     if (type == ConversationType.self) return 'Saved Messages';
     if (type == ConversationType.group) {
       return title?.isNotEmpty == true ? title! : 'Group chat';
     }
+    final name = peerDisplayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
     final username = peerUsername;
     return username?.isNotEmpty == true ? '@$username' : 'SIVIQ Member';
+  }
+
+  String get peerHandle {
+    final value = peerUsername?.trim();
+    return value == null || value.isEmpty ? '' : '@$value';
   }
 
   String displaySubtitle(String? currentUsername) {
@@ -97,6 +108,14 @@ class ChatConversation {
     return lastMessageContent?.isNotEmpty == true
         ? lastMessageContent!
         : 'No messages yet';
+  }
+
+  String displayHandle(String? currentUsername) {
+    if (type == ConversationType.self) {
+      final username = currentUsername?.trim();
+      return username == null || username.isEmpty ? 'You' : '@$username';
+    }
+    return peerHandle;
   }
 
   MessageDeliveryState lastMessageDeliveryStateFor(String? currentUserId) {
@@ -133,6 +152,7 @@ class ChatConversation {
       groupMemberSummary: json['group_member_summary'] as String?,
       currentUserRole: json['current_user_role'] as String?,
       peerId: json['peer_id'] as String?,
+      peerDisplayName: json['peer_display_name'] as String?,
       peerUsername: json['peer_username'] as String?,
       peerAvatarUrl: json['peer_avatar_url'] as String?,
       peerIsVerified: json['peer_is_verified'] as bool? ?? false,
@@ -142,6 +162,7 @@ class ChatConversation {
           : _date(json['peer_last_seen']),
       peerShowOnlineStatus: json['peer_show_online_status'] as bool? ?? true,
       peerRoleLabel: json['peer_role_label'] as String?,
+      peerRole: json['peer_role'] as String? ?? 'user',
     );
   }
 }
@@ -152,6 +173,7 @@ class GroupMember {
     required this.isVerified,
     required this.memberRole,
     required this.joinedAt,
+    this.displayNameText,
     this.username,
     this.avatarUrl,
     this.roleLabel,
@@ -159,6 +181,7 @@ class GroupMember {
   });
 
   final String userId;
+  final String? displayNameText;
   final String? username;
   final String? avatarUrl;
   final bool isVerified;
@@ -168,17 +191,26 @@ class GroupMember {
   final DateTime joinedAt;
 
   String get displayName {
+    final name = displayNameText?.trim();
+    if (name != null && name.isNotEmpty) return name;
     final value = username;
     return value?.isNotEmpty == true ? '@$value' : 'SIVIQ Member';
+  }
+
+  String get handle {
+    final value = username?.trim();
+    return value == null || value.isEmpty ? 'No username' : '@$value';
   }
 
   factory GroupMember.fromJson(Map<String, dynamic> json) {
     return GroupMember(
       userId: json['user_id'] as String,
+      displayNameText: json['display_name'] as String?,
       username: json['username'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       isVerified: json['is_verified'] as bool? ?? false,
       roleLabel: json['role_label'] as String?,
+      role: json['role'] as String? ?? 'user',
       memberRole: json['member_role'] as String? ?? 'member',
       joinedAt: _date(json['joined_at']),
     );
@@ -264,6 +296,7 @@ class ChatProfileResult {
   const ChatProfileResult({
     required this.id,
     required this.isVerified,
+    this.displayNameText,
     this.username,
     this.civiqCode,
     this.avatarUrl,
@@ -272,6 +305,7 @@ class ChatProfileResult {
   });
 
   final String id;
+  final String? displayNameText;
   final String? username;
   final String? civiqCode;
   final String? avatarUrl;
@@ -280,13 +314,21 @@ class ChatProfileResult {
   final String role;
 
   String get displayName {
+    final name = displayNameText?.trim();
+    if (name != null && name.isNotEmpty) return name;
     final value = username;
     return value?.isNotEmpty == true ? '@$value' : 'SIVIQ Member';
+  }
+
+  String get handle {
+    final value = username?.trim();
+    return value == null || value.isEmpty ? 'No username' : '@$value';
   }
 
   factory ChatProfileResult.fromJson(Map<String, dynamic> json) {
     return ChatProfileResult(
       id: json['id'] as String,
+      displayNameText: json['display_name'] as String?,
       username: json['username'] as String?,
       civiqCode: json['civiq_code'] as String?,
       avatarUrl: json['avatar_url'] as String?,

@@ -470,7 +470,10 @@ class _ConversationTile extends StatelessWidget {
                       ),
                       if (conversation.peerIsVerified) ...[
                         const SizedBox(width: 4),
-                        const CiviqVerifiedBadge(size: 15),
+                        CiviqVerifiedBadge(
+                          size: 15,
+                          role: conversation.peerRole,
+                        ),
                       ],
                     ],
                   ),
@@ -479,7 +482,12 @@ class _ConversationTile extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          mineLast ? 'You: $subtitle' : subtitle,
+                          mineLast
+                              ? 'You: $subtitle'
+                              : [
+                                  conversation.displayHandle(currentUsername),
+                                  subtitle,
+                                ].where((item) => item.isNotEmpty).join(' | '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: AppColors.grey),
@@ -671,11 +679,13 @@ class _SearchResults extends ConsumerWidget {
                   ),
                   if (result.isVerified) ...[
                     const SizedBox(width: 4),
-                    const CiviqVerifiedBadge(size: 15),
+                    CiviqVerifiedBadge(size: 15, role: result.role),
                   ],
                 ],
               ),
-              subtitle: Text(result.civiqCode ?? result.roleLabel ?? ''),
+              subtitle: Text(
+                '${result.handle} | ${result.civiqCode ?? result.roleLabel ?? ''}',
+              ),
               onTap: () async {
                 final router = GoRouter.of(context);
                 final messenger = ScaffoldMessenger.of(context);

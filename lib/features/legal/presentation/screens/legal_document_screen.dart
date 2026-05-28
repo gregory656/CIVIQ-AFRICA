@@ -70,7 +70,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Data We Collect',
             body:
-                'SIVIQ collects account details such as email, username, SIVIQ code, county, sub-county, profile image URL, and app activity needed to operate SIVIQ features.',
+                'SIVIQ collects account details such as email, display name, username, SIVIQ code, county, sub-county, profile image URL, and app activity needed to operate SIVIQ features.',
           ),
           _LegalSection(
             title: 'Why We Collect It',
@@ -80,7 +80,7 @@ _LegalContent _content(LegalDocument document) {
           _LegalSection(
             title: 'Location And Identity',
             body:
-                'County and sub-county selections are used for local relevance. Full email addresses are not shown publicly. Public profile identity should use your username and SIVIQ code.',
+                'County and sub-county selections are used for local relevance. Full email addresses are not shown publicly. Public profile identity can show your display name, username, and SIVIQ code.',
           ),
           _LegalSection(
             title: 'Your Choices',
@@ -213,7 +213,7 @@ _LegalContent _content(LegalDocument document) {
           ),
           _LegalSection(
             title: 'Contact',
-            body: 'WhatsApp: +254719637416\nEmail: gregorysteve656@gmail.com',
+            body: 'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com',
           ),
         ],
       );
@@ -233,7 +233,7 @@ _LegalContent _content(LegalDocument document) {
           ),
           _LegalSection(
             title: 'Send Your Appeal',
-            body: 'WhatsApp: +254719637416\nEmail: gregorysteve656@gmail.com',
+            body: 'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com',
           ),
           _LegalSection(
             title: 'Fair Use',
@@ -248,7 +248,7 @@ _LegalContent _content(LegalDocument document) {
         sections: [
           _LegalSection(
             title: 'Support',
-            body: 'WhatsApp: +254719637416\nEmail: gregorysteve656@gmail.com',
+            body: 'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com',
           ),
           _LegalSection(
             title: 'Report An Issue',

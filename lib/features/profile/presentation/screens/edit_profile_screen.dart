@@ -19,6 +19,7 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
+  final _displayNameController = TextEditingController();
   final _bioController = TextEditingController();
   final _picker = ImagePicker();
   File? _image;
@@ -28,6 +29,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   void dispose() {
+    _displayNameController.dispose();
     _bioController.dispose();
     super.dispose();
   }
@@ -64,6 +66,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           .upsertProfile(
             userId: user.id,
             email: user.email ?? profile.email,
+            displayName: _displayNameController.text.trim().replaceAll(
+              RegExp(r'\s+'),
+              ' ',
+            ),
             bio: _bioController.text.trim(),
             avatarUrl: avatarUrl,
           );
@@ -96,6 +102,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               return const Center(child: Text('Profile not found.'));
             }
             if (!_loaded) {
+              _displayNameController.text = profile.displayName ?? '';
               _bioController.text = profile.bio ?? '';
               _loaded = true;
             }
@@ -119,6 +126,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   label: const Text('Change profile picture'),
                 ),
                 const SizedBox(height: 22),
+                TextField(
+                  controller: _displayNameController,
+                  maxLength: 80,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Display name',
+                    hintText: 'Gregory Steve',
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: _bioController,
                   maxLines: 5,

@@ -307,9 +307,7 @@ class _ProfileTab extends ConsumerWidget {
       profile?.subcountyId,
       counties,
     );
-    final displayName = profile?.username?.isNotEmpty == true
-        ? '@${profile!.username}'
-        : 'SIVIQ Member';
+    final displayName = profile?.primaryName ?? 'SIVIQ Member';
     final code = profile?.civiqCode?.isNotEmpty == true
         ? profile!.civiqCode!
         : 'Pending code';
@@ -333,6 +331,17 @@ class _ProfileTab extends ConsumerWidget {
             const SizedBox(height: 3),
             Text(
               profile!.roleLabel!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.grey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (profile != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              profile!.handle,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.grey,

@@ -37,7 +37,7 @@ class PublicProfileScreen extends ConsumerWidget {
                       Flexible(
                         child: Text(
                           profile.username?.isNotEmpty == true
-                              ? '@${profile.username}'
+                              ? profile.primaryName
                               : 'SIVIQ Member',
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleLarge
@@ -62,6 +62,15 @@ class PublicProfileScreen extends ConsumerWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 4),
+                Text(
+                  profile.handle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 _PublicStats(profile: profile),
                 const SizedBox(height: 18),
@@ -110,15 +119,36 @@ class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
         textAlign: TextAlign.center,
         style: const TextStyle(color: AppColors.dangerRed),
       ),
-      data: (following) => FilledButton.icon(
-        onPressed: _saving || following ? null : _follow,
-        icon: Icon(following ? Icons.check : Icons.person_add_alt_1_outlined),
-        label: Text(
-          _saving
-              ? 'Following...'
-              : following
-              ? 'Following'
-              : 'Follow back',
+      data: (following) => Center(
+        child: SizedBox(
+          width: 132,
+          height: 40,
+          child: FilledButton.icon(
+            onPressed: _saving
+                ? null
+                : () => following ? _unfollow() : _follow(),
+            icon: Icon(
+              following
+                  ? Icons.person_remove_outlined
+                  : Icons.person_add_alt_1_outlined,
+              size: 18,
+            ),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _saving
+                    ? 'Saving...'
+                    : following
+                    ? 'Unfollow'
+                    : 'Follow back',
+              ),
+            ),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
         ),
       ),
     );
@@ -135,6 +165,28 @@ class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not follow account: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _unfollow() async {
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    if (currentUserId == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(profileRepositoryProvider)
+          .unfollowProfile(currentUserId, widget.profileId);
+      ref.invalidate(isFollowingProvider(widget.profileId));
+      ref.invalidate(publicProfileProvider(widget.profileId));
+      ref.invalidate(currentProfileProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not unfollow account: $error')),
         );
       }
     } finally {

@@ -36,6 +36,7 @@ class SocialPost {
     required this.viewerHasLiked,
     this.authorId,
     this.imageUrl,
+    this.authorDisplayName,
     this.authorUsername,
     this.authorAvatarUrl,
     this.authorIsVerified = false,
@@ -46,6 +47,7 @@ class SocialPost {
   final String? authorId;
   final String body;
   final String? imageUrl;
+  final String? authorDisplayName;
   final int likeCount;
   final int commentCount;
   final int shareCount;
@@ -57,8 +59,15 @@ class SocialPost {
   final String authorRole;
 
   String get displayName {
+    final name = authorDisplayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
     final username = authorUsername;
     return username == null || username.isEmpty ? 'SIVIQ Member' : '@$username';
+  }
+
+  String get authorHandle {
+    final username = authorUsername?.trim();
+    return username == null || username.isEmpty ? 'No username' : '@$username';
   }
 
   factory SocialPost.fromJson(Map<String, dynamic> json) {
@@ -67,6 +76,7 @@ class SocialPost {
       authorId: json['author_id'] as String?,
       body: json['body'] as String? ?? '',
       imageUrl: json['image_url'] as String?,
+      authorDisplayName: json['author_display_name'] as String?,
       likeCount: json['like_count'] as int? ?? 0,
       commentCount: json['comment_count'] as int? ?? 0,
       shareCount: json['share_count'] as int? ?? 0,
@@ -94,6 +104,7 @@ class SocialComment {
     this.parentCommentId,
     this.authorId,
     this.editedAt,
+    this.authorDisplayName,
     this.authorUsername,
     this.authorAvatarUrl,
     this.authorIsVerified = false,
@@ -107,6 +118,7 @@ class SocialComment {
   final String body;
   final DateTime createdAt;
   final DateTime? editedAt;
+  final String? authorDisplayName;
   final String? authorUsername;
   final String? authorAvatarUrl;
   final bool authorIsVerified;
@@ -116,8 +128,15 @@ class SocialComment {
   final bool viewerHasLiked;
 
   String get displayName {
+    final name = authorDisplayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
     final username = authorUsername;
     return username == null || username.isEmpty ? 'SIVIQ Member' : '@$username';
+  }
+
+  String get authorHandle {
+    final username = authorUsername?.trim();
+    return username == null || username.isEmpty ? 'No username' : '@$username';
   }
 
   factory SocialComment.fromJson(Map<String, dynamic> json) {
@@ -131,6 +150,7 @@ class SocialComment {
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.now(),
       editedAt: DateTime.tryParse(json['edited_at'] as String? ?? ''),
+      authorDisplayName: json['author_display_name'] as String?,
       authorUsername: json['author_username'] as String?,
       authorAvatarUrl: json['author_avatar_url'] as String?,
       authorIsVerified: json['author_is_verified'] as bool? ?? false,
@@ -169,9 +189,11 @@ class SocialPostRepository {
     final pattern = '%${query.replaceAll('%', '').replaceAll('_', '')}%';
     final profileRows = await _client
         .from('profiles')
-        .select('id,username,civiq_code,avatar_url,is_verified,role_label,role')
+        .select(
+          'id,display_name,username,civiq_code,avatar_url,is_verified,role_label,role',
+        )
         .or(
-          'username.ilike.$pattern,bio.ilike.$pattern,civiq_code.ilike.$pattern',
+          'display_name.ilike.$pattern,username.ilike.$pattern,bio.ilike.$pattern,civiq_code.ilike.$pattern',
         )
         .limit(12);
     final postRows = await _client
