@@ -44,6 +44,9 @@ Date: 2026-05-28
 - Added `profiles.display_name` so users can show a human name such as `Gregory Steve` while keeping `@username` and SIVIQ code for identity.
 - Updated profile setup and edit profile so users can create/update display names.
 - Updated major profile, search, feed, chat, and group member surfaces to show display name first, badge beside display name, and username underneath or in secondary text.
+- Removed badges from group chat titles so groups do not inherit moderator/super-admin badges from members.
+- Added compact relationship buttons to post headers and profile lists with `Follow`, `Follow Back`, `Following`, and `Unfollow` behavior.
+- Made profile rows clickable so users can open profiles, view followers/following, follow/unfollow, follow back, and start chats from profile screens.
 
 ## What This Means
 

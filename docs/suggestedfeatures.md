@@ -1,5 +1,29 @@
 # Suggested Features And Supabase Playbook
 
+## Done Today - 2026-05-28
+
+- Home feed tabs now read `For You`, `Trending`, and `Discover`.
+- `Discover` loads SIVIQ profiles in pages of 5 so the app does not pull hundreds or thousands of profiles at once.
+- Profile discovery still opens the same public profile route and keeps follow/unfollow quick actions available.
+- Added a Supabase migration to paginate `discover_civiq_profiles(page_limit, page_offset)`.
+
+## Play Store Size Estimate
+
+Current local debug APK:
+
+```text
+build/app/outputs/flutter-apk/app-debug.apk
+104,118,369 bytes, about 99.3 MiB / 104.1 MB
+```
+
+Expected Play Store release:
+
+- Android App Bundle (`.aab`): likely around 45-80 MB after release shrinking and bundle packaging.
+- User download from Play Store: likely around 30-70 MB depending on device ABI and Play delivery splitting.
+- Installed app size: likely around 120-250 MB after Flutter engine, native libraries, cache, and app data.
+
+This is nowhere near 0.4 GB unless media cache or downloaded content grows heavily after install. A signed release `.aab` is still needed for the exact Play Console number.
+
 This document lists strong next features for CIVIQ Africa after Phase 1.5, plus the database migration/function workflow .
 
 ## Product Direction
@@ -805,4 +829,3 @@ docs/release_checklist.md
 For pre-launch checks before every production release.
 
 Lastly one request let That danger zone be a button which when clicked then so it displays the two danger zones,logout and delete account
-

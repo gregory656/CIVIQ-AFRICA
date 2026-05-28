@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../data/profile_repository.dart';
+import 'public_profile_screen.dart';
 
 enum SocialListType { followers, following }
 
@@ -293,9 +294,6 @@ class _ProfileConnectionTile extends ConsumerStatefulWidget {
 
 class _ProfileConnectionTileState
     extends ConsumerState<_ProfileConnectionTile> {
-  bool _following = false;
-  bool _saving = false;
-
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
@@ -318,34 +316,15 @@ class _ProfileConnectionTileState
         ],
       ),
       subtitle: Text('${account.handle} | ${_subtitleFor(account)}'),
-      trailing: widget.showFollowButton
-          ? SizedBox(
-              width: 116,
-              height: 40,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0A66C2),
-                  foregroundColor: AppColors.white,
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: _saving
-                    ? null
-                    : () => _following ? _unfollow() : _follow(),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    _saving
-                        ? 'Saving...'
-                        : _following
-                        ? 'Unfollow'
-                        : 'Follow',
-                  ),
-                ),
-              ),
-            )
-          : null,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PublicProfileScreen(profileId: account.id),
+        ),
+      ),
+      trailing: _RelationshipButton(
+        accountId: account.id,
+        refreshProfileId: widget.refreshProfileId,
+      ),
     );
   }
 
@@ -357,29 +336,97 @@ class _ProfileConnectionTileState
     if (role == null || role.isEmpty) return code;
     return '$role | $code';
   }
+}
+
+class _RelationshipButton extends ConsumerStatefulWidget {
+  const _RelationshipButton({required this.accountId, this.refreshProfileId});
+
+  final String accountId;
+  final String? refreshProfileId;
+
+  @override
+  ConsumerState<_RelationshipButton> createState() =>
+      _RelationshipButtonState();
+}
+
+class _RelationshipButtonState extends ConsumerState<_RelationshipButton> {
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    if (currentUserId == null || currentUserId == widget.accountId) {
+      return const SizedBox.shrink();
+    }
+    final relationship = ref.watch(
+      profileRelationshipProvider(widget.accountId),
+    );
+    return relationship.when(
+      loading: () => const SizedBox(width: 88, height: 36),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (state) {
+        final following = state.isFollowing;
+        return SizedBox(
+          width: following ? 108 : 116,
+          height: 36,
+          child: following
+              ? OutlinedButton(
+                  onPressed: _saving ? null : _unfollow,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryGreen,
+                    side: const BorderSide(color: AppColors.primaryGreen),
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(_saving ? 'Saving...' : 'Unfollow'),
+                  ),
+                )
+              : FilledButton(
+                  onPressed: _saving ? null : _follow,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: AppColors.white,
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _saving
+                          ? 'Saving...'
+                          : state.followsBack
+                          ? 'Follow Back'
+                          : 'Follow',
+                    ),
+                  ),
+                ),
+        );
+      },
+    );
+  }
 
   Future<void> _follow() async {
     setState(() => _saving = true);
     try {
-      await ref
-          .read(profileRepositoryProvider)
-          .followProfile(widget.account.id);
-      if (!mounted) return;
-      setState(() {
-        _following = true;
-        _saving = false;
-      });
+      await ref.read(profileRepositoryProvider).followProfile(widget.accountId);
       ref.invalidate(currentProfileProvider);
       final refreshProfileId = widget.refreshProfileId;
       if (refreshProfileId != null) {
         ref.invalidate(followingScreenDataProvider(refreshProfileId));
       }
+      ref.invalidate(profileRelationshipProvider(widget.accountId));
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not follow account: $error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not follow account: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -390,23 +437,21 @@ class _ProfileConnectionTileState
     try {
       await ref
           .read(profileRepositoryProvider)
-          .unfollowProfile(currentUserId, widget.account.id);
-      if (!mounted) return;
-      setState(() {
-        _following = false;
-        _saving = false;
-      });
+          .unfollowProfile(currentUserId, widget.accountId);
       ref.invalidate(currentProfileProvider);
       final refreshProfileId = widget.refreshProfileId;
       if (refreshProfileId != null) {
         ref.invalidate(followingScreenDataProvider(refreshProfileId));
       }
+      ref.invalidate(profileRelationshipProvider(widget.accountId));
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not unfollow account: $error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not unfollow account: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 }

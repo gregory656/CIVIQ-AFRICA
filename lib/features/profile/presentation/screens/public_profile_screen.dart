@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../../features/auth/data/auth_repository.dart';
+import '../../../chats/data/repositories/chat_repository.dart';
 import '../../data/profile_repository.dart';
 
 class PublicProfileScreen extends ConsumerWidget {
@@ -74,7 +76,7 @@ class PublicProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _PublicStats(profile: profile),
                 const SizedBox(height: 18),
-                _FollowBackButton(profileId: profile.id),
+                _ProfileActions(profileId: profile.id),
                 const SizedBox(height: 18),
                 Text(
                   profile.bio?.isNotEmpty == true
@@ -92,17 +94,18 @@ class PublicProfileScreen extends ConsumerWidget {
   }
 }
 
-class _FollowBackButton extends ConsumerStatefulWidget {
-  const _FollowBackButton({required this.profileId});
+class _ProfileActions extends ConsumerStatefulWidget {
+  const _ProfileActions({required this.profileId});
 
   final String profileId;
 
   @override
-  ConsumerState<_FollowBackButton> createState() => _FollowBackButtonState();
+  ConsumerState<_ProfileActions> createState() => _ProfileActionsState();
 }
 
-class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
+class _ProfileActionsState extends ConsumerState<_ProfileActions> {
   bool _saving = false;
+  bool _openingChat = false;
 
   @override
   Widget build(BuildContext context) {
@@ -111,45 +114,82 @@ class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
       return const SizedBox.shrink();
     }
 
-    final isFollowing = ref.watch(isFollowingProvider(widget.profileId));
-    return isFollowing.when(
+    final relationship = ref.watch(
+      profileRelationshipProvider(widget.profileId),
+    );
+    return relationship.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Text(
         'Could not load follow state: $error',
         textAlign: TextAlign.center,
         style: const TextStyle(color: AppColors.dangerRed),
       ),
-      data: (following) => Center(
-        child: SizedBox(
-          width: 132,
-          height: 40,
-          child: FilledButton.icon(
-            onPressed: _saving
-                ? null
-                : () => following ? _unfollow() : _follow(),
-            icon: Icon(
-              following
-                  ? Icons.person_remove_outlined
-                  : Icons.person_add_alt_1_outlined,
-              size: 18,
-            ),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                _saving
-                    ? 'Saving...'
-                    : following
-                    ? 'Unfollow'
-                    : 'Follow back',
+      data: (state) => Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 10,
+        runSpacing: 8,
+        children: [
+          SizedBox(
+            width: state.isFollowing ? 126 : 132,
+            height: 40,
+            child: state.isFollowing
+                ? OutlinedButton.icon(
+                    onPressed: _saving ? null : _unfollow,
+                    icon: const Icon(Icons.person_remove_outlined, size: 18),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(_saving ? 'Saving...' : 'Unfollow'),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryGreen,
+                      side: const BorderSide(color: AppColors.primaryGreen),
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  )
+                : FilledButton.icon(
+                    onPressed: _saving ? null : _follow,
+                    icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _saving
+                            ? 'Saving...'
+                            : state.followsBack
+                            ? 'Follow back'
+                            : 'Follow',
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      foregroundColor: AppColors.white,
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+          ),
+          SizedBox(
+            width: 118,
+            height: 40,
+            child: OutlinedButton.icon(
+              onPressed: _openingChat ? null : _openChat,
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(_openingChat ? 'Opening...' : 'Message'),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryGreen,
+                side: const BorderSide(color: AppColors.primaryGreen),
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 40),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -158,7 +198,7 @@ class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
     setState(() => _saving = true);
     try {
       await ref.read(profileRepositoryProvider).followProfile(widget.profileId);
-      ref.invalidate(isFollowingProvider(widget.profileId));
+      ref.invalidate(profileRelationshipProvider(widget.profileId));
       ref.invalidate(publicProfileProvider(widget.profileId));
       ref.invalidate(currentProfileProvider);
     } catch (error) {
@@ -180,7 +220,7 @@ class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
       await ref
           .read(profileRepositoryProvider)
           .unfollowProfile(currentUserId, widget.profileId);
-      ref.invalidate(isFollowingProvider(widget.profileId));
+      ref.invalidate(profileRelationshipProvider(widget.profileId));
       ref.invalidate(publicProfileProvider(widget.profileId));
       ref.invalidate(currentProfileProvider);
     } catch (error) {
@@ -191,6 +231,24 @@ class _FollowBackButtonState extends ConsumerState<_FollowBackButton> {
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _openChat() async {
+    setState(() => _openingChat = true);
+    try {
+      final conversationId = await ref
+          .read(chatRepositoryProvider)
+          .createDirectConversation(widget.profileId);
+      if (mounted) context.push('/chats/$conversationId');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open chat: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _openingChat = false);
     }
   }
 }
@@ -205,36 +263,52 @@ class _PublicStats extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _Stat(label: 'Following', count: profile.followingCount),
+        _Stat(
+          label: 'Following',
+          count: profile.followingCount,
+          route: '/profile/${profile.id}/following',
+        ),
         Container(
           width: 1,
           height: 24,
           margin: const EdgeInsets.symmetric(horizontal: 14),
           color: AppColors.border,
         ),
-        _Stat(label: 'Followers', count: profile.followersCount),
+        _Stat(
+          label: 'Followers',
+          count: profile.followersCount,
+          route: '/profile/${profile.id}/followers',
+        ),
       ],
     );
   }
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.count});
+  const _Stat({required this.label, required this.count, required this.route});
 
   final String label;
   final int count;
+  final String route;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          count.toString(),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => context.push(route),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Column(
+          children: [
+            Text(
+              count.toString(),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: AppColors.grey)),
+          ],
         ),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: AppColors.grey)),
-      ],
+      ),
     );
   }
 }

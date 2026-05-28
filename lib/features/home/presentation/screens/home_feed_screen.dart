@@ -57,7 +57,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen>
           tabs: const [
             Tab(text: 'For You'),
             Tab(text: 'Trending'),
-            Tab(text: 'Following'),
+            Tab(text: 'Discover'),
           ],
         ),
         Expanded(
@@ -66,7 +66,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen>
             children: [
               _SocialFeedList(posts: feed),
               _SocialFeedList(posts: feed, trending: true),
-              const _FollowingPlaceholder(),
+              const _DiscoverProfilesTab(),
             ],
           ),
         ),
@@ -279,7 +279,6 @@ class _SearchProfileTile extends ConsumerStatefulWidget {
 }
 
 class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
-  bool _following = false;
   bool _saving = false;
 
   @override
@@ -311,30 +310,11 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
           builder: (_) => PublicProfileScreen(profileId: profile.id),
         ),
       ),
-      trailing: SizedBox(
-        width: 112,
-        child: FilledButton(
-          onPressed: _saving
-              ? null
-              : () => (_following || profile.isFollowed)
-                    ? _unfollow()
-                    : _follow(),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 40),
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              _saving
-                  ? 'Saving...'
-                  : _following || profile.isFollowed
-                  ? 'Unfollow'
-                  : 'Follow',
-            ),
-          ),
-        ),
+      trailing: _RelationshipActionButton(
+        profileId: profile.id,
+        isSaving: _saving,
+        onFollow: _follow,
+        onUnfollow: _unfollow,
       ),
     );
   }
@@ -346,10 +326,8 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
           .read(profileRepositoryProvider)
           .followProfile(widget.profile.id);
       if (!mounted) return;
-      setState(() {
-        _following = true;
-        _saving = false;
-      });
+      setState(() => _saving = false);
+      ref.invalidate(profileRelationshipProvider(widget.profile.id));
       ref.invalidate(currentProfileProvider);
     } catch (error) {
       if (!mounted) return;
@@ -373,10 +351,8 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
           .read(profileRepositoryProvider)
           .unfollowProfile(currentUserId, widget.profile.id);
       if (!mounted) return;
-      setState(() {
-        _following = false;
-        _saving = false;
-      });
+      setState(() => _saving = false);
+      ref.invalidate(profileRelationshipProvider(widget.profile.id));
       ref.invalidate(currentProfileProvider);
     } catch (error) {
       if (!mounted) return;
@@ -392,6 +368,75 @@ class _SearchProfileTileState extends ConsumerState<_SearchProfileTile> {
         ),
       );
     }
+  }
+}
+
+class _RelationshipActionButton extends ConsumerWidget {
+  const _RelationshipActionButton({
+    required this.profileId,
+    required this.isSaving,
+    required this.onFollow,
+    required this.onUnfollow,
+  });
+
+  final String profileId;
+  final bool isSaving;
+  final VoidCallback onFollow;
+  final VoidCallback onUnfollow;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final relationship = ref.watch(profileRelationshipProvider(profileId));
+    return relationship.when(
+      loading: () => const SizedBox(width: 96, height: 36),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (state) {
+        if (state.isSelf) return const SizedBox.shrink();
+        final following = state.isFollowing;
+        final label = isSaving
+            ? 'Saving'
+            : following
+            ? 'Following'
+            : state.followsBack
+            ? 'Follow Back'
+            : 'Follow';
+        return SizedBox(
+          width: 104,
+          height: 36,
+          child: following
+              ? OutlinedButton(
+                  onPressed: isSaving ? null : onUnfollow,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryGreen,
+                    side: const BorderSide(color: AppColors.primaryGreen),
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: FittedBox(child: Text(label)),
+                )
+              : FilledButton(
+                  onPressed: isSaving ? null : onFollow,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: AppColors.white,
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: FittedBox(child: Text(label)),
+                ),
+        );
+      },
+    );
   }
 }
 
@@ -550,42 +595,52 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
                       children: [
                         Row(
                           children: [
-                            _Avatar(url: post.authorAvatarUrl),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: _openAuthorProfile,
+                              child: _Avatar(url: post.authorAvatarUrl),
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          post.displayName,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: _openAuthorProfile,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            post.displayName,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      if (post.authorIsVerified) ...[
-                                        const SizedBox(width: 4),
-                                        CiviqVerifiedBadge(
-                                          size: 15,
-                                          role: post.authorRole,
-                                        ),
+                                        if (post.authorIsVerified) ...[
+                                          const SizedBox(width: 4),
+                                          CiviqVerifiedBadge(
+                                            size: 15,
+                                            role: post.authorRole,
+                                          ),
+                                        ],
                                       ],
-                                    ],
-                                  ),
-                                  Text(
-                                    '${post.authorHandle} | ${_timeAgo(post.createdAt)}',
-                                    style: const TextStyle(
-                                      color: AppColors.grey,
-                                      fontSize: 12,
                                     ),
-                                  ),
-                                ],
+                                    Text(
+                                      '${post.authorHandle} | ${_timeAgo(post.createdAt)}',
+                                      style: const TextStyle(
+                                        color: AppColors.grey,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
+                            _PostRelationshipButton(post: post),
+                            const SizedBox(width: 2),
                             IconButton(
                               tooltip: 'More',
                               onPressed: () => _showPostActions(
@@ -711,6 +766,16 @@ class _SocialPostCardState extends ConsumerState<SocialPostCard> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => SocialPostDetailScreen(post: widget.post),
+      ),
+    );
+  }
+
+  void _openAuthorProfile() {
+    final authorId = widget.post.authorId;
+    if (authorId == null || authorId.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfileScreen(profileId: authorId),
       ),
     );
   }
@@ -1068,6 +1133,143 @@ class SocialPostDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _PostRelationshipButton extends ConsumerStatefulWidget {
+  const _PostRelationshipButton({required this.post});
+
+  final SocialPost post;
+
+  @override
+  ConsumerState<_PostRelationshipButton> createState() =>
+      _PostRelationshipButtonState();
+}
+
+class _PostRelationshipButtonState
+    extends ConsumerState<_PostRelationshipButton> {
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final authorId = widget.post.authorId;
+    final currentUserId = ref.watch(currentAuthUserIdProvider);
+    if (authorId == null ||
+        currentUserId == null ||
+        currentUserId == authorId) {
+      return const SizedBox.shrink();
+    }
+
+    final relationship = ref.watch(profileRelationshipProvider(authorId));
+    return relationship.when(
+      loading: () => const SizedBox(width: 74, height: 32),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (state) {
+        if (state.isSelf) return const SizedBox.shrink();
+        final following = state.isFollowing;
+        return SizedBox(
+          height: 28,
+          child: following
+              ? OutlinedButton(
+                  onPressed: _saving ? null : _unfollow,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryGreen,
+                    side: const BorderSide(color: AppColors.primaryGreen),
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: Text(_saving ? 'Saving' : 'Following'),
+                )
+              : FilledButton(
+                  onPressed: _saving ? null : _follow,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: AppColors.white,
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: Text(
+                    _saving
+                        ? 'Saving'
+                        : state.followsBack
+                        ? 'Follow Back'
+                        : 'Follow',
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  Future<void> _follow() async {
+    final authorId = widget.post.authorId;
+    if (authorId == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(profileRepositoryProvider).followProfile(authorId);
+      ref.invalidate(profileRelationshipProvider(authorId));
+      ref.invalidate(currentProfileProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(
+                error,
+                fallback: 'Could not follow profile.',
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _unfollow() async {
+    final authorId = widget.post.authorId;
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    if (authorId == null || currentUserId == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(profileRepositoryProvider)
+          .unfollowProfile(currentUserId, authorId);
+      ref.invalidate(profileRelationshipProvider(authorId));
+      ref.invalidate(currentProfileProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(
+                error,
+                fallback: 'Could not unfollow profile.',
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 
@@ -1877,21 +2079,175 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-class _FollowingPlaceholder extends StatelessWidget {
-  const _FollowingPlaceholder();
+class _DiscoverProfilesTab extends ConsumerStatefulWidget {
+  const _DiscoverProfilesTab();
+
+  @override
+  ConsumerState<_DiscoverProfilesTab> createState() =>
+      _DiscoverProfilesTabState();
+}
+
+class _DiscoverProfilesTabState extends ConsumerState<_DiscoverProfilesTab> {
+  static const _pageSize = 5;
+
+  final _controller = ScrollController();
+  final List<ProfileConnection> _profiles = [];
+  bool _loading = false;
+  bool _initialLoaded = false;
+  bool _hasMore = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onScroll);
+    Future.microtask(_loadInitial);
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'Following feed will show posts from profiles you follow.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.grey),
+    final currentUserId = ref.watch(currentAuthUserIdProvider);
+    if (currentUserId == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Sign in to discover SIVIQ profiles.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.grey),
+          ),
         ),
+      );
+    }
+
+    if (!_initialLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null && _profiles.isEmpty) {
+      return _FeedError(error: _error!);
+    }
+
+    if (_profiles.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          children: const [
+            SizedBox(height: 110),
+            Icon(
+              Icons.travel_explore_outlined,
+              size: 62,
+              color: AppColors.primaryGreen,
+            ),
+            SizedBox(height: 12),
+            Text(
+              'No SIVIQ profiles to discover yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        controller: _controller,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+        itemBuilder: (context, index) {
+          if (index >= _profiles.length) {
+            if (_hasMore && !_loading) {
+              Future.microtask(_loadNextPage);
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: _loading
+                    ? const CircularProgressIndicator()
+                    : Text(
+                        _hasMore
+                            ? 'Scroll for more profiles'
+                            : 'All available profiles loaded',
+                        style: const TextStyle(color: AppColors.grey),
+                      ),
+              ),
+            );
+          }
+          return _SearchProfileTile(_profiles[index]);
+        },
+        separatorBuilder: (_, index) => index >= _profiles.length - 1
+            ? const SizedBox.shrink()
+            : const Divider(height: 1),
+        itemCount: _profiles.length + 1,
       ),
     );
+  }
+
+  void _onScroll() {
+    if (!_controller.hasClients || _loading || !_hasMore) return;
+    final position = _controller.position;
+    if (position.pixels >= position.maxScrollExtent - 280) {
+      _loadNextPage();
+    }
+  }
+
+  Future<void> _loadInitial() async {
+    await _loadNextPage(reset: true);
+  }
+
+  Future<void> _refresh() async {
+    await _loadNextPage(reset: true);
+  }
+
+  Future<void> _loadNextPage({bool reset = false}) async {
+    final currentUserId = ref.read(currentAuthUserIdProvider);
+    if (currentUserId == null || _loading) return;
+    if (!reset && !_hasMore) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      if (reset) {
+        _profiles.clear();
+        _hasMore = true;
+      }
+    });
+
+    try {
+      final page = await ref
+          .read(profileRepositoryProvider)
+          .discoverProfilesPage(
+            currentUserId: currentUserId,
+            limit: _pageSize,
+            offset: _profiles.length,
+          );
+      if (!mounted) return;
+      setState(() {
+        _profiles.addAll(page);
+        _hasMore = page.length == _pageSize;
+        _initialLoaded = true;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _initialLoaded = true;
+        _loading = false;
+      });
+    }
   }
 }
 

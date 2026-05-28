@@ -178,7 +178,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                           ),
                         ),
                       ),
-                      if (headerConversation?.peerIsVerified == true) ...[
+                      if (headerConversation?.type != ConversationType.group &&
+                          headerConversation?.peerIsVerified == true) ...[
                         const SizedBox(width: 4),
                         CiviqVerifiedBadge(
                           size: 14,

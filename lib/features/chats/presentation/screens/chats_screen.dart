@@ -468,7 +468,8 @@ class _ConversationTile extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
-                      if (conversation.peerIsVerified) ...[
+                      if (conversation.type != ConversationType.group &&
+                          conversation.peerIsVerified) ...[
                         const SizedBox(width: 4),
                         CiviqVerifiedBadge(
                           size: 15,

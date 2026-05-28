@@ -52,6 +52,10 @@ It also updates the main profile/feed/chat RPCs and views so `display_name` is r
 - Home search shows display name first and username underneath.
 - Feed posts use display name first and username beside the timestamp line.
 - Chats and group members use display name first, while username remains visible in secondary text.
+- Group chat names do not show verified/admin/moderator badges. Badges belong to user profiles only.
+- Post headers now include a compact relationship button before the three-dot menu.
+- Public profiles include relationship actions and a message button.
+- Followers/following list rows are clickable and include a relationship button on the far right.
 
 ## Rules
 
@@ -60,6 +64,22 @@ It also updates the main profile/feed/chat RPCs and views so `display_name` is r
 - Username remains the stable handle and should stay unique.
 - Display name is not unique and can contain spaces.
 - Badges attach to display name, not username.
+- Badges should not attach to groups, even if a group contains a moderator or super admin.
+
+## Relationship Button Logic
+
+The same relationship logic is used on post headers, public profiles, and profile lists:
+
+- Self profile/post: hide the relationship button.
+- Already following: show `Following` or `Unfollow` with an outlined green style depending on the surface.
+- The other user follows you, but you do not follow them: show `Follow Back`.
+- No relationship: show `Follow`.
+
+Post card placement:
+
+- Avatar, display name, and username stay on the left.
+- The relationship button appears on the right before the three-dot menu.
+- The three-dot menu remains the final action in the row.
 
 ## Future Improvements
 

@@ -34,6 +34,35 @@ final isFollowingProvider = FutureProvider.family<bool, String>((
       .isFollowing(currentUserId, targetUserId);
 });
 
+final profileRelationshipProvider =
+    FutureProvider.family<ProfileRelationship, String>((ref, targetUserId) {
+      final currentUserId = ref.watch(currentAuthUserIdProvider);
+      if (currentUserId == null || currentUserId == targetUserId) {
+        return const ProfileRelationship(isSelf: true);
+      }
+      return ref
+          .watch(profileRepositoryProvider)
+          .relationship(currentUserId, targetUserId);
+    });
+
+class ProfileRelationship {
+  const ProfileRelationship({
+    this.isSelf = false,
+    this.isFollowing = false,
+    this.followsBack = false,
+  });
+
+  final bool isSelf;
+  final bool isFollowing;
+  final bool followsBack;
+
+  String get label {
+    if (isFollowing) return 'Following';
+    if (followsBack) return 'Follow Back';
+    return 'Follow';
+  }
+}
+
 class CiviqProfile {
   const CiviqProfile({
     required this.id,
@@ -266,14 +295,37 @@ class ProfileRepository {
   }
 
   Future<List<ProfileConnection>> discoverSiviqUsers(
-    String currentUserId,
-  ) async {
-    final response = await _client.rpc('discover_civiq_profiles');
+    String currentUserId, {
+    int limit = 5,
+    int offset = 0,
+  }) async {
+    Object response;
+    try {
+      response = await _client
+          .rpc(
+            'discover_civiq_profiles',
+            params: {'page_limit': limit, 'page_offset': offset},
+          )
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      final allProfiles = await _client
+          .rpc('discover_civiq_profiles')
+          .timeout(const Duration(seconds: 12));
+      response = (allProfiles as List).skip(offset).take(limit).toList();
+    }
     return (response as List)
         .map(
           (json) => ProfileConnection.fromJson(Map<String, dynamic>.from(json)),
         )
         .toList(growable: false);
+  }
+
+  Future<List<ProfileConnection>> discoverProfilesPage({
+    required String currentUserId,
+    int limit = 5,
+    int offset = 0,
+  }) async {
+    return discoverSiviqUsers(currentUserId, limit: limit, offset: offset);
   }
 
   Future<bool> isFollowing(String currentUserId, String targetUserId) async {
@@ -284,6 +336,35 @@ class ProfileRepository {
         .eq('following_id', targetUserId)
         .maybeSingle();
     return response != null;
+  }
+
+  Future<ProfileRelationship> relationship(
+    String currentUserId,
+    String targetUserId,
+  ) async {
+    final rows = await _client
+        .from('follows')
+        .select('follower_id,following_id')
+        .or(
+          'and(follower_id.eq.$currentUserId,following_id.eq.$targetUserId),and(follower_id.eq.$targetUserId,following_id.eq.$currentUserId)',
+        );
+    var isFollowing = false;
+    var followsBack = false;
+    for (final row in rows) {
+      final map = Map<String, dynamic>.from(row);
+      final followerId = map['follower_id'] as String?;
+      final followingId = map['following_id'] as String?;
+      if (followerId == currentUserId && followingId == targetUserId) {
+        isFollowing = true;
+      }
+      if (followerId == targetUserId && followingId == currentUserId) {
+        followsBack = true;
+      }
+    }
+    return ProfileRelationship(
+      isFollowing: isFollowing,
+      followsBack: followsBack,
+    );
   }
 
   Future<void> followProfile(String targetUserId) async {
