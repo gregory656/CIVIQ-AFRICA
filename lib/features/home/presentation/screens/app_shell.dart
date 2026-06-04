@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +17,7 @@ import '../../../../features/home/data/social_post_repository.dart';
 import '../../../../features/chats/presentation/screens/chats_screen.dart';
 import '../../../../features/home/presentation/screens/home_feed_screen.dart';
 import '../../../../features/locations/data/location_repository.dart';
+import '../../../../features/monetization/data/monetization_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../features/profile/data/security_repository.dart';
@@ -33,7 +36,10 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  Timer? _searchRecordDebounce;
   String _searchQuery = '';
+  String? _lastRecordedSearch;
 
   final _tabs = const [
     _ShellTab(title: 'Home Feed', icon: Icons.home_outlined),
@@ -47,18 +53,44 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
+    _searchRecordDebounce?.cancel();
     _searchController
       ..removeListener(_onSearchChanged)
       ..dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    setState(() => _searchQuery = _searchController.text.trim());
+    final query = _searchController.text.trim();
+    setState(() => _searchQuery = query);
+    _searchRecordDebounce?.cancel();
+    if (query.length < 2) return;
+    _searchRecordDebounce = Timer(
+      const Duration(milliseconds: 900),
+      () => _recordSearch(query),
+    );
+  }
+
+  Future<void> _recordSearch(String query) async {
+    final normalized = query.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.length < 2 || normalized == _lastRecordedSearch) return;
+    final userId = ref.read(currentAuthUserIdProvider);
+    if (userId == null) return;
+    _lastRecordedSearch = normalized;
+    try {
+      await ref
+          .read(monetizationRepositoryProvider)
+          .recordSearch(userId: userId, searchTerm: normalized);
+      ref.invalidate(recentSearchesProvider);
+    } catch (_) {
+      _lastRecordedSearch = null;
+    }
   }
 
   @override
@@ -172,6 +204,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    onSubmitted: _recordSearch,
                     decoration: InputDecoration(
                       hintText: 'Search SIVIQ...',
                       prefixIcon: const Icon(Icons.search),
@@ -195,7 +229,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               ),
             ),
-      body: _ShellBody(tab: tab, index: _index, searchQuery: _searchQuery),
+      body: _ShellBody(
+        tab: tab,
+        index: _index,
+        searchQuery: _searchQuery,
+        searchFocused: _searchFocusNode.hasFocus,
+        onSearchSelected: (term) {
+          _searchController.text = term;
+          _searchController.selection = TextSelection.collapsed(
+            offset: term.length,
+          );
+          _recordSearch(term);
+        },
+      ),
       floatingActionButton: _index == 0
           ? FloatingActionButton(
               tooltip: 'Create post',
@@ -229,11 +275,15 @@ class _ShellBody extends ConsumerWidget {
     required this.tab,
     required this.index,
     required this.searchQuery,
+    required this.searchFocused,
+    required this.onSearchSelected,
   });
 
   final _ShellTab tab;
   final int index;
   final String searchQuery;
+  final bool searchFocused;
+  final ValueChanged<String> onSearchSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -259,6 +309,9 @@ class _ShellBody extends ConsumerWidget {
     if (index == 0) {
       if (searchQuery.length >= 2) {
         return GlobalSearchScreen(query: searchQuery);
+      }
+      if (searchFocused) {
+        return _RecentSearchesPanel(onSelected: onSearchSelected);
       }
       return const HomeFeedScreen();
     }
@@ -289,6 +342,79 @@ class _ShellBody extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RecentSearchesPanel extends ConsumerWidget {
+  const _RecentSearchesPanel({required this.onSelected});
+
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searches = ref.watch(recentSearchesProvider);
+    final userId = ref.watch(currentAuthUserIdProvider);
+    return searches.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _ProfileError(error: error),
+      data: (items) {
+        if (items.isEmpty) {
+          return const Center(
+            child: Text(
+              'Recent searches will appear here.',
+              style: TextStyle(color: AppColors.grey),
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Recent Searches',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
+                ),
+                TextButton(
+                  onPressed: userId == null
+                      ? null
+                      : () async {
+                          await ref
+                              .read(monetizationRepositoryProvider)
+                              .clearRecentSearches(userId);
+                          ref.invalidate(recentSearchesProvider);
+                        },
+                  child: const Text('Clear All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...items.map(
+              (item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.history),
+                title: Text(item.term),
+                onTap: () => onSelected(item.term),
+                trailing: IconButton(
+                  tooltip: 'Remove search',
+                  icon: const Icon(Icons.close),
+                  onPressed: userId == null
+                      ? null
+                      : () async {
+                          await ref
+                              .read(monetizationRepositoryProvider)
+                              .removeRecentSearch(userId, item.term);
+                          ref.invalidate(recentSearchesProvider);
+                        },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

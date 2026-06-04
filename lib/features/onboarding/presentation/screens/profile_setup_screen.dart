@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
+import '../../../../features/monetization/data/monetization_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../shared/models/kenya_location.dart';
 
@@ -23,6 +24,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _bioController = TextEditingController();
   KenyaCounty? _county;
   KenyaSubcounty? _subcounty;
+  String? _ageGroup = 'prefer_not_to_say';
+  final Set<String> _interestIds = {};
   List<String> _suggestions = const [];
   bool _loading = false;
   String? _error;
@@ -73,7 +76,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         bio: _bioController.text.trim(),
         countyId: _county!.id,
         subcountyId: _subcounty!.id,
+        ageGroup: _ageGroup,
       );
+      await ref
+          .read(monetizationRepositoryProvider)
+          .saveUserInterests(userId: user.id, interestIds: _interestIds);
       ref.invalidate(currentProfileProvider);
 
       if (mounted) context.go('/avatar-upload');
@@ -87,6 +94,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final locations = ref.watch(governanceLocationsProvider);
+    final interests = ref.watch(interestsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile Setup')),
@@ -214,6 +222,71 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   const SizedBox(height: 12),
                   _LeaderSummary(county: _county, subcounty: _subcounty),
                 ],
+                const SizedBox(height: 18),
+                DropdownButtonFormField<String>(
+                  initialValue: _ageGroup,
+                  decoration: const InputDecoration(
+                    labelText: 'Age group',
+                    prefixIcon: Icon(Icons.group_outlined),
+                  ),
+                  items: _ageGroupOptions
+                      .map(
+                        (option) => DropdownMenuItem<String>(
+                          value: option.value,
+                          child: Text(option.label),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => setState(() => _ageGroup = value),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Help us personalize your experience',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Select up to 5 interests.',
+                  style: TextStyle(color: AppColors.grey),
+                ),
+                const SizedBox(height: 10),
+                interests.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (error, _) => Text('Could not load interests: $error'),
+                  data: (items) => Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: items
+                        .map(
+                          (interest) => FilterChip(
+                            label: Text(interest.name),
+                            selected: _interestIds.contains(interest.id),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  if (_interestIds.length >= 5) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Choose up to 5 interests.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  _interestIds.add(interest.id);
+                                } else {
+                                  _interestIds.remove(interest.id);
+                                }
+                              });
+                            },
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   Text(
@@ -426,3 +499,21 @@ class _LeaderRow extends StatelessWidget {
     );
   }
 }
+
+class _AgeGroupOption {
+  const _AgeGroupOption(this.value, this.label);
+
+  final String value;
+  final String label;
+}
+
+const _ageGroupOptions = [
+  _AgeGroupOption('under_18', 'Under 18'),
+  _AgeGroupOption('18_24', '18-24'),
+  _AgeGroupOption('25_34', '25-34'),
+  _AgeGroupOption('35_44', '35-44'),
+  _AgeGroupOption('45_54', '45-54'),
+  _AgeGroupOption('55_64', '55-64'),
+  _AgeGroupOption('65_plus', '65+'),
+  _AgeGroupOption('prefer_not_to_say', 'Prefer not to say'),
+];

@@ -10,6 +10,7 @@ import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/cloudinary_service.dart';
@@ -18,6 +19,7 @@ import '../../../../core/widgets/confirmation_popup.dart';
 import '../../../../core/widgets/linkified_text.dart';
 import '../../../../core/widgets/verified_badge.dart';
 import '../../../auth/data/auth_repository.dart';
+import '../../../monetization/data/monetization_repository.dart';
 import '../../../profile/data/profile_repository.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../../projects/presentation/screens/projects_screen.dart';
@@ -2136,61 +2138,53 @@ class _DiscoverProfilesTabState extends ConsumerState<_DiscoverProfilesTab> {
       return _FeedError(error: _error!);
     }
 
-    if (_profiles.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          children: const [
-            SizedBox(height: 110),
-            Icon(
-              Icons.travel_explore_outlined,
-              size: 62,
-              color: AppColors.primaryGreen,
-            ),
-            SizedBox(height: 12),
-            Text(
-              'No SIVIQ profiles to discover yet.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-          ],
-        ),
-      );
-    }
-
+    final trendingPosts = ref.watch(socialHomeFeedProvider);
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.separated(
+      child: ListView(
         controller: _controller,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-        itemBuilder: (context, index) {
-          if (index >= _profiles.length) {
-            if (_hasMore && !_loading) {
-              Future.microtask(_loadNextPage);
-            }
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18),
+        children: [
+          const _SponsoredContentSection(),
+          const SizedBox(height: 14),
+          const _SearchSectionTitle('People You May Know'),
+          if (_profiles.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : Text(
-                        _hasMore
-                            ? 'Scroll for more profiles'
-                            : 'All available profiles loaded',
-                        style: const TextStyle(color: AppColors.grey),
-                      ),
+                child: Text(
+                  'No SIVIQ profiles to discover yet.',
+                  style: TextStyle(color: AppColors.grey),
+                ),
               ),
-            );
-          }
-          return _SearchProfileTile(_profiles[index]);
-        },
-        separatorBuilder: (_, index) => index >= _profiles.length - 1
-            ? const SizedBox.shrink()
-            : const Divider(height: 1),
-        itemCount: _profiles.length + 1,
+            )
+          else
+            ..._profiles.map(
+              (profile) => Column(
+                children: [
+                  _SearchProfileTile(profile),
+                  const Divider(height: 1),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            child: Center(
+              child: _loading
+                  ? const CircularProgressIndicator()
+                  : Text(
+                      _hasMore
+                          ? 'Scroll for more profiles'
+                          : 'All available profiles loaded',
+                      style: const TextStyle(color: AppColors.grey),
+                    ),
+            ),
+          ),
+          const _TrendingSearchesSection(),
+          const SizedBox(height: 14),
+          _TrendingTopicsSection(posts: trendingPosts),
+        ],
       ),
     );
   }
@@ -2248,6 +2242,198 @@ class _DiscoverProfilesTabState extends ConsumerState<_DiscoverProfilesTab> {
         _loading = false;
       });
     }
+  }
+}
+
+class _SponsoredContentSection extends ConsumerWidget {
+  const _SponsoredContentSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ads = ref.watch(discoverAdsProvider);
+    return ads.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SearchSectionTitle('Sponsored Content'),
+            ...items.map(
+              (ad) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _SponsoredAdCard(ad: ad),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SponsoredAdCard extends ConsumerStatefulWidget {
+  const _SponsoredAdCard({required this.ad});
+
+  final CiviqAd ad;
+
+  @override
+  ConsumerState<_SponsoredAdCard> createState() => _SponsoredAdCardState();
+}
+
+class _SponsoredAdCardState extends ConsumerState<_SponsoredAdCard> {
+  bool _impressionRecorded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_recordImpression);
+  }
+
+  Future<void> _recordImpression() async {
+    if (_impressionRecorded) return;
+    _impressionRecorded = true;
+    try {
+      await ref
+          .read(monetizationRepositoryProvider)
+          .recordAdImpression(widget.ad.id);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ad = widget.ad;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => _openAd(ad),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (ad.imageUrl?.isNotEmpty == true)
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8),
+                ),
+                child: CachedNetworkImage(
+                  imageUrl: ad.imageUrl!,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Sponsored',
+                    style: TextStyle(color: AppColors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    ad.title,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  if (ad.description?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(ad.description!),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAd(CiviqAd ad) async {
+    try {
+      await ref.read(monetizationRepositoryProvider).recordAdClick(ad.id);
+    } catch (_) {}
+    final url = ad.destinationUrl;
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
+class _TrendingSearchesSection extends ConsumerWidget {
+  const _TrendingSearchesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trends = ref.watch(weeklyTrendingSearchesProvider);
+    return trends.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SearchSectionTitle('Trending Searches'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: items
+                  .take(8)
+                  .map(
+                    (trend) => Chip(
+                      avatar: const Icon(Icons.trending_up, size: 18),
+                      label: Text('${trend.term} (${trend.count})'),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TrendingTopicsSection extends StatelessWidget {
+  const _TrendingTopicsSection({required this.posts});
+
+  final AsyncValue<List<SocialPost>> posts;
+
+  @override
+  Widget build(BuildContext context) {
+    return posts.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (items) {
+        final trending = [...items]
+          ..sort((a, b) {
+            final bScore = b.likeCount + b.commentCount + b.shareCount;
+            final aScore = a.likeCount + a.commentCount + a.shareCount;
+            return bScore.compareTo(aScore);
+          });
+        final top = trending.take(3).toList(growable: false);
+        if (top.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SearchSectionTitle('Trending Topics'),
+            ...top.map(
+              (post) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SocialPostCard(post: post),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

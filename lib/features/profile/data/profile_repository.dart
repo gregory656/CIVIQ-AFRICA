@@ -74,6 +74,7 @@ class CiviqProfile {
     this.avatarUrl,
     this.countyId,
     this.subcountyId,
+    this.ageGroup,
     this.isPublic = false,
     this.showOnlineStatus = true,
     this.showReadReceipts = true,
@@ -99,6 +100,7 @@ class CiviqProfile {
   final String? avatarUrl;
   final int? countyId;
   final int? subcountyId;
+  final String? ageGroup;
   final bool isPublic;
   final bool showOnlineStatus;
   final bool showReadReceipts;
@@ -150,6 +152,7 @@ class CiviqProfile {
       avatarUrl: json['avatar_url'] as String?,
       countyId: json['county_id'] as int?,
       subcountyId: json['subcounty_id'] as int?,
+      ageGroup: json['age_group'] as String?,
       isPublic: json['is_public'] as bool? ?? false,
       showOnlineStatus: json['show_online_status'] as bool? ?? true,
       showReadReceipts: json['show_read_receipts'] as bool? ?? true,
@@ -393,6 +396,7 @@ class ProfileRepository {
     String? bio,
     int? countyId,
     int? subcountyId,
+    String? ageGroup,
     String? avatarUrl,
     String? civiqCode,
   }) async {
@@ -406,6 +410,7 @@ class ProfileRepository {
     if (bio != null) payload['bio'] = bio;
     if (countyId != null) payload['county_id'] = countyId;
     if (subcountyId != null) payload['subcounty_id'] = subcountyId;
+    if (ageGroup != null) payload['age_group'] = ageGroup;
     if (avatarUrl != null) payload['avatar_url'] = avatarUrl;
     if (civiqCode != null) payload['civiq_code'] = civiqCode;
 
