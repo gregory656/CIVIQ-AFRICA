@@ -32,23 +32,33 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     )..forward();
     _fall = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    Timer(const Duration(seconds: 2), () async {
-      if (!mounted) return;
-      final session = ref.read(authRepositoryProvider).currentSession;
-      if (session != null) {
-        final profile = await ref
-            .read(currentProfileProvider.future)
-            .catchError((_) => null);
-        if (!mounted) return;
-        if (profile?.isRestricted ?? false) {
-          _restoreSystemUi();
-          context.go('/settings/account-status');
-          return;
-        }
-      }
-      _restoreSystemUi();
-      context.go(session == null ? '/intro' : '/home');
-    });
+    unawaited(_routeAfterSplash());
+  }
+
+  Future<void> _routeAfterSplash() async {
+    final session = ref.read(authRepositoryProvider).currentSession;
+    final profileFuture = session == null
+        ? Future.value(null)
+        : ref
+              .read(currentProfileProvider.future)
+              .timeout(
+                const Duration(milliseconds: 2500),
+                onTimeout: () => null,
+              )
+              .catchError((_) => null);
+
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+
+    final profile = await profileFuture;
+    if (!mounted) return;
+
+    _restoreSystemUi();
+    if (profile?.isRestricted ?? false) {
+      context.go('/settings/account-status');
+      return;
+    }
+    context.go(session == null ? '/intro' : '/home');
   }
 
   void _restoreSystemUi() {

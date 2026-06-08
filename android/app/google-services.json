@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "156183317916",
+    "project_id": "siviq-68850",
+    "storage_bucket": "siviq-68850.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:156183317916:android:3300a249ab4a965e1c4c59",
+        "android_client_info": {
+          "package_name": "com.siviq.africa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeHruXK90zzq7-0N7WYJTyJ7zgNyEJ2-Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
