@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_assets.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../profile/data/profile_repository.dart';
 
@@ -19,19 +20,29 @@ class SplashScreen extends ConsumerStatefulWidget {
 class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _fall;
+  late final Animation<double> _scale;
+  late final Animation<double> _turn;
   late final Animation<double> _fade;
 
   @override
   void initState() {
     super.initState();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 850),
     )..forward();
-    _fall = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _scale = TweenSequence<double>(
+      [
+        TweenSequenceItem(tween: Tween(begin: .72, end: 1.04), weight: 72),
+        TweenSequenceItem(tween: Tween(begin: 1.04, end: 1), weight: 28),
+      ],
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _turn = Tween<double>(
+      begin: -.16,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     unawaited(_routeAfterSplash());
   }
 
@@ -46,9 +57,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 onTimeout: () => null,
               )
               .catchError((_) => null);
-
-    await Future<void>.delayed(const Duration(seconds: 3));
-    if (!mounted) return;
 
     final profile = await profileFuture;
     if (!mounted) return;
@@ -75,20 +83,52 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Opacity(
-            opacity: _fade.value,
-            child: Transform.translate(
-              offset: Offset(0, -24 + (24 * _fall.value)),
-              child: child,
+      backgroundColor: AppColors.background,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(AppAssets.splashScreen, fit: BoxFit.cover),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.white.withValues(alpha: .82),
             ),
-          );
-        },
-        child: SizedBox.expand(
-          child: Image.asset(AppAssets.splashScreen, fit: BoxFit.cover),
-        ),
+          ),
+          Center(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _fade.value,
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, .001)
+                      ..rotateY(_turn.value)
+                      ..scale(_scale.value),
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                width: 84,
+                height: 84,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryGreen.withValues(alpha: .22),
+                      blurRadius: 28,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: Image.asset(AppAssets.appIcon),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

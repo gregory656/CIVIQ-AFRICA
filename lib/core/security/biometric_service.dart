@@ -17,7 +17,7 @@ class BiometricService {
     return supported && canCheck;
   }
 
-  Future<bool> authenticate({String reason = 'Unlock SIVIQ'}) {
+  Future<bool> authenticate({String reason = 'Unlock Siviq'}) {
     return _auth.authenticate(
       localizedReason: reason,
       biometricOnly: true,
