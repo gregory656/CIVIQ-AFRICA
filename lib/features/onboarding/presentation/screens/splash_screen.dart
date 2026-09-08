@@ -104,7 +104,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     transform: Matrix4.identity()
                       ..setEntry(3, 2, .001)
                       ..rotateY(_turn.value)
-                      ..scale(_scale.value),
+                      ..scaleByDouble(
+                        _scale.value,
+                        _scale.value,
+                        _scale.value,
+                        1.0,
+                      ),
                     child: child,
                   ),
                 );
