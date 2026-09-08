@@ -1,8 +1,8 @@
 # Miscellaneous
 .env
-.env.client
 *.env
 !instructions.md/.env
+!.env.client
 *.class
 *.log
 *.pyc
@@ -48,3 +48,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android signing
+android/key.properties
+*.jks
