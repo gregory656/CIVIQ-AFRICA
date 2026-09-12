@@ -16,6 +16,21 @@ final interestsProvider = FutureProvider<List<CiviqInterest>>((ref) {
   return ref.watch(monetizationRepositoryProvider).fetchInterests();
 });
 
+const fallbackInterests = [
+  'Infrastructure',
+  'Roads',
+  'Water',
+  'Healthcare',
+  'Education',
+  'Jobs',
+  'Youth',
+  'Environment',
+  'Safety',
+  'Housing',
+  'Technology',
+  'Governance',
+];
+
 final recentSearchesProvider = FutureProvider<List<CiviqSearchHistoryItem>>((
   ref,
 ) {
@@ -118,11 +133,18 @@ class MonetizationRepository {
   final SupabaseClient _client;
 
   Future<List<CiviqInterest>> fetchInterests() async {
-    final rows = await _client.from('interests').select().order('name');
-    return rows
-        .map<CiviqInterest>(
-          (row) => CiviqInterest.fromJson(Map<String, dynamic>.from(row)),
-        )
+    try {
+      final rows = await _client.from('interests').select().order('name');
+      if (rows.isNotEmpty) {
+        return rows
+            .map<CiviqInterest>(
+              (row) => CiviqInterest.fromJson(Map<String, dynamic>.from(row)),
+            )
+            .toList(growable: false);
+      }
+    } catch (_) {}
+    return fallbackInterests
+        .map((name) => CiviqInterest(id: 'fallback-$name', name: name))
         .toList(growable: false);
   }
 
@@ -131,6 +153,7 @@ class MonetizationRepository {
     required Iterable<String> interestIds,
   }) async {
     final uniqueIds = interestIds.toSet().take(5).toList(growable: false);
+    if (uniqueIds.every((id) => id.startsWith('fallback-'))) return;
     await _client.from('user_interests').delete().eq('user_id', userId);
     if (uniqueIds.isEmpty) return;
     await _client

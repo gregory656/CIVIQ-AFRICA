@@ -24,6 +24,8 @@
 - Added a 900 ms entrance animation on the Intro screen for a quick, non-blocking opening transition.
 - Added explicit Back buttons throughout the account-creation steps and profile guidance for name, bio, and location.
 - Profile setup now offers a safe “Continue without location for now” path if a location save fails; locations can be updated from Edit Profile.
+- Interest selection now has an in-app fallback list and never blocks onboarding when the interests service is unavailable.
+- Restored and verified 12 live interest records; `20260912130000_restore_interest_seed.sql` preserves this seed set in future deployments.
 
 ## Validation
 

@@ -24,6 +24,37 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 enum _CatMood { idle, attentive, covered, curious, error, success }
 
+class _SignupJourney extends StatelessWidget {
+  const _SignupJourney();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreen.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.primaryGreen.withValues(alpha: .14),
+        ),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.auto_awesome_outlined, color: AppColors.primaryGreen),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'A quick start: create your login, tell us about yourself, then personalize your civic feed.',
+              style: TextStyle(color: AppColors.grey, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
@@ -251,6 +282,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                     ),
                   ),
                   const SizedBox(height: 22),
+                  if (!_isLogin)
+                    _AnimatedEntrance(
+                      controller: _introController,
+                      interval: const Interval(
+                        .3,
+                        .78,
+                        curve: Curves.easeOutCubic,
+                      ),
+                      child: const _SignupJourney(),
+                    ),
+                  if (!_isLogin) const SizedBox(height: 18),
                   _AnimatedEntrance(
                     controller: _introController,
                     interval: const Interval(
