@@ -67,7 +67,14 @@ class _CiviqCodeScreenState extends ConsumerState<CiviqCodeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Your SIVIQ Code')),
+      appBar: AppBar(
+        title: const Text('Your SIVIQ Code'),
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => context.go('/avatar-upload'),
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),

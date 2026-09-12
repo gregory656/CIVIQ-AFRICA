@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/locations/data/location_repository.dart';
-import '../../../../features/monetization/data/monetization_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 import '../../../../shared/models/kenya_location.dart';
 
@@ -25,9 +25,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   KenyaCounty? _county;
   KenyaSubcounty? _subcounty;
   String? _ageGroup = 'prefer_not_to_say';
-  final Set<String> _interestIds = {};
   List<String> _suggestions = const [];
   bool _loading = false;
+  bool _canContinueWithoutLocation = false;
   String? _error;
 
   @override
@@ -44,6 +44,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       _loading = true;
       _error = null;
       _suggestions = const [];
+      _canContinueWithoutLocation = false;
     });
 
     try {
@@ -53,7 +54,13 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         ' ',
       );
       final username = _usernameController.text.trim();
-      if (await profileRepo.isUsernameTaken(username)) {
+      final auth = ref.read(authRepositoryProvider);
+      final user = auth.currentUser;
+      if (user == null) throw Exception('You need to sign in again.');
+      if (await profileRepo.isUsernameTaken(
+        username,
+        excludingUserId: user.id,
+      )) {
         setState(
           () => _suggestions = profileRepo.usernameSuggestions(username),
         );
@@ -63,10 +70,14 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       if (_county == null || _subcounty == null) {
         throw Exception('Select your county and sub-county.');
       }
-
-      final auth = ref.read(authRepositoryProvider);
-      final user = auth.currentUser;
-      if (user == null) throw Exception('You need to sign in again.');
+      final locations = await ref.read(governanceLocationsProvider.future);
+      final selectedCounty = locations.where((item) => item.id == _county!.id);
+      if (selectedCounty.isEmpty ||
+          !selectedCounty.first.subcounties.any(
+            (item) => item.id == _subcounty!.id,
+          )) {
+        throw Exception('Selected county or sub-county is unavailable.');
+      }
 
       await profileRepo.upsertProfile(
         userId: user.id,
@@ -78,14 +89,52 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         subcountyId: _subcounty!.id,
         ageGroup: _ageGroup,
       );
-      await ref
-          .read(monetizationRepositoryProvider)
-          .saveUserInterests(userId: user.id, interestIds: _interestIds);
       ref.invalidate(currentProfileProvider);
 
-      if (mounted) context.go('/avatar-upload');
+      if (mounted) context.go('/interests');
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(() {
+        _error = friendlyErrorMessage(
+          error,
+          fallback: 'We could not save your county and constituency right now.',
+        );
+        _canContinueWithoutLocation = true;
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _continueWithoutLocation() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      final user = ref.read(authRepositoryProvider).currentUser;
+      if (user == null) throw Exception('You need to sign in again.');
+      await ref
+          .read(profileRepositoryProvider)
+          .upsertProfile(
+            userId: user.id,
+            email: user.email ?? '',
+            displayName: _displayNameController.text.trim().replaceAll(
+              RegExp(r'\s+'),
+              ' ',
+            ),
+            username: _usernameController.text.trim(),
+            bio: _bioController.text.trim(),
+            ageGroup: _ageGroup,
+          );
+      ref.invalidate(currentProfileProvider);
+      if (mounted) context.go('/interests');
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = friendlyErrorMessage(
+            error,
+            fallback: 'We could not save your profile. Please try again.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -94,10 +143,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final locations = ref.watch(governanceLocationsProvider);
-    final interests = ref.watch(interestsProvider);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile Setup')),
+      appBar: AppBar(
+        title: const Text('Profile Setup'),
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: _loading ? null : () => context.go('/auth'),
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -106,6 +160,18 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  'Let’s build your civic profile',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Start with your name, then add a short bio and choose where you live. You can update everything later.',
+                  style: TextStyle(color: AppColors.grey, height: 1.4),
+                ),
+                const SizedBox(height: 20),
                 TextFormField(
                   controller: _displayNameController,
                   decoration: const InputDecoration(
@@ -169,8 +235,20 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 const SizedBox(height: 14),
                 locations.when(
                   loading: () => const LinearProgressIndicator(),
-                  error: (error, _) => Text('Could not load counties: $error'),
+                  error: (error, _) => Text(
+                    friendlyErrorMessage(
+                      error,
+                      fallback: 'Could not load locations. Please try again.',
+                    ),
+                    style: const TextStyle(color: AppColors.dangerRed),
+                  ),
                   data: (counties) {
+                    if (counties.isEmpty) {
+                      return const Text(
+                        'Oops, counties are not available at the moment. Please try again later.',
+                        style: TextStyle(color: AppColors.dangerRed),
+                      );
+                    }
                     final county = _county ?? counties.first;
                     _county ??= county;
                     _subcounty ??= county.subcounties.first;
@@ -239,54 +317,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                       .toList(growable: false),
                   onChanged: (value) => setState(() => _ageGroup = value),
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  'Help us personalize your experience',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Select up to 5 interests.',
-                  style: TextStyle(color: AppColors.grey),
-                ),
-                const SizedBox(height: 10),
-                interests.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (error, _) => Text('Could not load interests: $error'),
-                  data: (items) => Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: items
-                        .map(
-                          (interest) => FilterChip(
-                            label: Text(interest.name),
-                            selected: _interestIds.contains(interest.id),
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  if (_interestIds.length >= 5) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Choose up to 5 interests.',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  _interestIds.add(interest.id);
-                                } else {
-                                  _interestIds.remove(interest.id);
-                                }
-                              });
-                            },
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   Text(
@@ -299,6 +329,19 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   onPressed: _loading ? null : _save,
                   child: Text(_loading ? 'Saving...' : 'Continue'),
                 ),
+                if (_canContinueWithoutLocation) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton(
+                    onPressed: _loading ? null : _continueWithoutLocation,
+                    child: const Text('Continue without location for now'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'You can add your county and constituency later in Edit Profile.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.grey),
+                  ),
+                ],
               ],
             ),
           ),

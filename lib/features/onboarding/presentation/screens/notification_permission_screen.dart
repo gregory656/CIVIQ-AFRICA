@@ -49,7 +49,14 @@ class _NotificationPermissionScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: _loading ? null : () => context.go('/civiq-code'),
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),

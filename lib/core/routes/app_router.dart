@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/supabase_service.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/terms_screen.dart';
 import '../../features/chats/data/models/chat_models.dart';
@@ -17,7 +18,7 @@ import '../../features/onboarding/presentation/screens/civiq_code_screen.dart';
 import '../../features/onboarding/presentation/screens/intro_screen.dart';
 import '../../features/onboarding/presentation/screens/notification_permission_screen.dart';
 import '../../features/onboarding/presentation/screens/profile_setup_screen.dart';
-import '../../features/onboarding/presentation/screens/splash_screen.dart';
+import '../../features/onboarding/presentation/screens/interests_screen.dart';
 import '../../features/profile/presentation/screens/account_status_screen.dart';
 import '../../features/profile/presentation/screens/active_sessions_screen.dart';
 import '../../features/profile/presentation/screens/devices_screen.dart';
@@ -31,9 +32,11 @@ import '../../features/profile/presentation/screens/social_list_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation:
+        ref.read(supabaseClientProvider).auth.currentSession == null
+        ? '/intro'
+        : '/home',
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/intro', builder: (context, state) => const IntroScreen()),
       GoRoute(path: '/terms', builder: (context, state) => const TermsScreen()),
       GoRoute(
@@ -197,6 +200,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile-setup',
         builder: (context, state) => const ProfileSetupScreen(),
+      ),
+      GoRoute(
+        path: '/interests',
+        builder: (context, state) => const InterestsScreen(),
       ),
       GoRoute(
         path: '/avatar-upload',

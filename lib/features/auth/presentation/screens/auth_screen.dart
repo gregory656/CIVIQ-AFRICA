@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../core/widgets/brand_mark.dart';
 import '../../../../features/legal/data/legal_repository.dart';
 import '../../data/auth_repository.dart';
@@ -111,7 +112,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       context.go(_isLogin ? '/home' : '/profile-setup');
     } catch (error) {
       setState(() {
-        _error = error.toString();
+        _error = friendlyErrorMessage(
+          error,
+          fallback: _isLogin
+              ? 'We could not sign you in. Please try again.'
+              : 'We could not create your account. Please try again.',
+        );
         _loading = false;
       });
     }
@@ -271,17 +277,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         _AuthField(
                           controller: _emailController,
                           focusNode: _emailFocus,
-                          label: 'Email or phone number',
-                          hint: 'Enter your email or phone',
-                          icon: Icons.account_circle_outlined,
+                          label: 'Email address',
+                          hint: 'you@example.com',
+                          icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             final text = value?.trim() ?? '';
-                            final looksLikePhone = RegExp(
-                              r'^\+?[0-9 ]{7,}$',
-                            ).hasMatch(text);
-                            if (!text.contains('@') && !looksLikePhone) {
-                              return 'Enter a valid email or phone number.';
+                            if (!RegExp(
+                              r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$',
+                            ).hasMatch(text)) {
+                              return 'Enter a valid email address.';
                             }
                             return null;
                           },

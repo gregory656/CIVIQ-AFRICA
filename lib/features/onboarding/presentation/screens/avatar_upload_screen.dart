@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/cloudinary_service.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/profile/data/profile_repository.dart';
 
@@ -61,7 +62,13 @@ class _AvatarUploadScreenState extends ConsumerState<AvatarUploadScreen> {
 
       if (mounted) context.go('/civiq-code');
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = friendlyErrorMessage(
+          error,
+          fallback:
+              'We could not update your profile picture. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -70,7 +77,14 @@ class _AvatarUploadScreenState extends ConsumerState<AvatarUploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile Picture')),
+      appBar: AppBar(
+        title: const Text('Profile Picture'),
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: _loading ? null : () => context.go('/interests'),
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),

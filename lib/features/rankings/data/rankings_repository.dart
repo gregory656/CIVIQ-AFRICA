@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../profile/data/profile_repository.dart';
+import '../../../shared/models/kenya_location.dart';
 
 final rankingsRepositoryProvider = Provider<RankingsRepository>((ref) {
   return RankingsRepository(ref.watch(supabaseClientProvider));
@@ -234,11 +235,14 @@ class RankingsRepository {
     int? viewerCountyId,
     int? viewerSubcountyId,
   }) async {
-    final snapshotRows = await _client
-        .from('v_latest_leaderboard')
-        .select()
-        .eq('role', filter.roleLabel)
-        .order('rank');
+    List<dynamic> snapshotRows = const [];
+    try {
+      snapshotRows = await _client
+          .from('v_latest_leaderboard')
+          .select()
+          .eq('role', filter.roleLabel)
+          .order('rank');
+    } catch (_) {}
 
     final rankings = snapshotRows
         .map<LeaderRanking>(
@@ -246,9 +250,25 @@ class RankingsRepository {
         )
         .toList();
 
-    final source = rankings.isEmpty
-        ? await _fetchDirectory(filter.roleLabel)
-        : rankings;
+    final remoteDirectory = await _fetchDirectory(filter.roleLabel);
+    final localDirectory = _localDirectory(filter.roleLabel);
+    final remoteByName = {
+      for (final leader in remoteDirectory)
+        '${leader.role}:${leader.leaderName.toLowerCase()}': leader,
+    };
+    final directory = localDirectory
+        .map(
+          (leader) =>
+              remoteByName['${leader.role}:${leader.leaderName.toLowerCase()}'] ??
+              leader,
+        )
+        .toList(growable: false);
+    final snapshotsByLeader = {
+      for (final ranking in rankings) ranking.leaderId: ranking,
+    };
+    final source = directory
+        .map((leader) => snapshotsByLeader[leader.leaderId] ?? leader)
+        .toList(growable: false);
     return _applyFilter(
       source,
       filter,
@@ -258,17 +278,99 @@ class RankingsRepository {
   }
 
   Future<List<LeaderRanking>> _fetchDirectory(String role) async {
-    final rows = await _client
-        .from('v_leader_directory')
-        .select()
-        .eq('role', role)
-        .order('leader_name');
+    try {
+      final rows = await _client
+          .from('v_leader_directory')
+          .select()
+          .eq('role', role)
+          .order('leader_name');
+      if (rows.isNotEmpty) {
+        return rows
+            .map<LeaderRanking>(
+              (row) =>
+                  LeaderRanking.fromDirectory(Map<String, dynamic>.from(row)),
+            )
+            .toList();
+      }
+    } catch (_) {}
 
-    return rows
-        .map<LeaderRanking>(
-          (row) => LeaderRanking.fromDirectory(Map<String, dynamic>.from(row)),
-        )
-        .toList();
+    try {
+      final responses = await Future.wait([
+        _client.from('leaders').select().eq('role', role).order('name'),
+        _client.from('counties').select('id,name'),
+        _client.from('subcounties').select('id,name'),
+      ]);
+      final counties = {
+        for (final row in responses[1] as List)
+          row['id'] as int: row['name'] as String? ?? 'Unknown county',
+      };
+      final subcounties = {
+        for (final row in responses[2] as List)
+          row['id'] as int: row['name'] as String? ?? 'Unknown constituency',
+      };
+      final leaders = (responses[0] as List)
+          .map<LeaderRanking>((row) {
+            final data = Map<String, dynamic>.from(row as Map);
+            final countyId = data['county_id'] as int? ?? 0;
+            final subcountyId = data['subcounty_id'] as int?;
+            return LeaderRanking(
+              leaderId: data['id'] as String,
+              leaderName: data['name'] as String? ?? 'Unnamed leader',
+              role: data['role'] as String? ?? role,
+              partyName: data['party_name'] as String? ?? 'N/A',
+              countyId: countyId,
+              countyName: counties[countyId] ?? 'Unknown county',
+              subcountyId: subcountyId,
+              subcountyName: subcountyId == null
+                  ? null
+                  : subcounties[subcountyId],
+              totalProjects: 0,
+              hasSnapshot: false,
+            );
+          })
+          .toList(growable: false);
+      return leaders.isEmpty ? _localDirectory(role) : leaders;
+    } catch (_) {
+      return _localDirectory(role);
+    }
+  }
+
+  List<LeaderRanking> _localDirectory(String role) {
+    final leaders = <LeaderRanking>[];
+    for (final county in kenyaCounties) {
+      if (role == 'Governor' && (county.governorName?.isNotEmpty ?? false)) {
+        leaders.add(
+          LeaderRanking(
+            leaderId: 'directory-governor-${county.id}',
+            leaderName: county.governorName!,
+            role: 'Governor',
+            partyName: county.governorParty ?? 'N/A',
+            countyId: county.id,
+            countyName: county.name,
+            hasSnapshot: false,
+          ),
+        );
+      }
+      if (role == 'MP') {
+        for (final subcounty in county.subcounties) {
+          if (subcounty.mpName?.isEmpty ?? true) continue;
+          leaders.add(
+            LeaderRanking(
+              leaderId: 'directory-mp-${subcounty.id}',
+              leaderName: subcounty.mpName!,
+              role: 'MP',
+              partyName: subcounty.mpParty ?? 'N/A',
+              countyId: county.id,
+              countyName: county.name,
+              subcountyId: subcounty.id,
+              subcountyName: subcounty.name,
+              hasSnapshot: false,
+            ),
+          );
+        }
+      }
+    }
+    return leaders;
   }
 
   List<LeaderRanking> _applyFilter(

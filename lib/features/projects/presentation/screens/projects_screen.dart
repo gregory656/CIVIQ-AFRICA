@@ -1640,7 +1640,13 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
       ref.invalidate(localProjectFeedProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = friendlyErrorMessage(
+          error,
+          fallback:
+              'We could not submit your project report. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

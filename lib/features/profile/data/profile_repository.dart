@@ -417,12 +417,14 @@ class ProfileRepository {
     await _client.from('profiles').upsert(payload);
   }
 
-  Future<bool> isUsernameTaken(String username) async {
-    final response = await _client
-        .from('profiles')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle();
+  Future<bool> isUsernameTaken(
+    String username, {
+    String? excludingUserId,
+  }) async {
+    final query = _client.from('profiles').select('id').eq('username', username);
+    final response = excludingUserId == null
+        ? await query.maybeSingle()
+        : await query.neq('id', excludingUserId).maybeSingle();
     return response != null;
   }
 

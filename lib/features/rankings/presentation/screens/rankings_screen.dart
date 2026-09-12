@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../features/locations/data/location_repository.dart';
 import '../../../../features/notifications/data/notification_repository.dart';
 import '../../../../shared/models/kenya_location.dart';
@@ -951,7 +952,10 @@ class _RankingsError extends ConsumerWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            error.toString(),
+            friendlyErrorMessage(
+              error,
+              fallback: 'Could not load rankings. Please try again.',
+            ),
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.grey),
           ),

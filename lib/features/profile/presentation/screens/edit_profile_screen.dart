@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/friendly_error.dart';
 import '../../../../core/services/cloudinary_service.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../data/profile_repository.dart';
@@ -82,7 +83,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         context.pop();
       }
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = friendlyErrorMessage(
+          error,
+          fallback: 'We could not update your profile. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -96,7 +102,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       body: SafeArea(
         child: profile.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(child: Text(error.toString())),
+          error: (error, _) => Center(
+            child: Text(
+              friendlyErrorMessage(
+                error,
+                fallback: 'Could not load your profile. Please try again.',
+              ),
+            ),
+          ),
           data: (profile) {
             if (profile == null) {
               return const Center(child: Text('Profile not found.'));
@@ -135,6 +148,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     hintText: 'Gregory Steve',
                     prefixIcon: Icon(Icons.badge_outlined),
                   ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _saving
+                      ? null
+                      : () => context.push('/profile-setup'),
+                  icon: const Icon(Icons.location_on_outlined),
+                  label: const Text('Update county and constituency'),
                 ),
                 const SizedBox(height: 12),
                 TextField(

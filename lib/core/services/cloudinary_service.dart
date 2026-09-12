@@ -42,6 +42,6 @@ class CloudinaryService {
     if (secureUrl == null || secureUrl.isEmpty) {
       throw Exception('Did not return a secure URL.');
     }
-    return secureUrl;
+    return secureUrl.replaceFirst('/upload/', '/upload/f_auto,q_auto/');
   }
 }
