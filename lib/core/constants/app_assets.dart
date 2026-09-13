@@ -1,3 +1,3 @@
 class AppAssets {
-  static const appIcon = 'assets/realicon.png';
+  static const appIcon = 'assets/civic.png';
 }

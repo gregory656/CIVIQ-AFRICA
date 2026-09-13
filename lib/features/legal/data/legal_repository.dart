@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 
-const currentPolicyVersion = '2026-05-21';
+const currentPolicyVersion = '2026-09-14';
 
 final legalRepositoryProvider = Provider<LegalRepository>((ref) {
   return LegalRepository(ref.watch(supabaseClientProvider));

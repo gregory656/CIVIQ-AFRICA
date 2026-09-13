@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/friendly_error.dart';
@@ -77,6 +79,19 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
+  Future<void> _launchWebsite() async {
+    final Uri url = Uri.parse('https://siviq.top');
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } catch (e) {
+      debugPrint('Error launching website: $e');
+    }
+  }
+
   Future<void> _recordSearch(String query) async {
     final normalized = query.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (normalized.length < 2 || normalized == _lastRecordedSearch) return;
@@ -101,54 +116,200 @@ class _AppShellState extends ConsumerState<AppShell> {
       drawer: _index == 3
           ? null
           : Drawer(
-              child: SafeArea(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+              child: Container(
+                color: AppColors.white,
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      // Header with branding
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        color: AppColors.primaryGreen,
+                        child: Column(
+                          children: [
+                            const BrandMark(size: 48, showText: true),
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () => _launchWebsite(),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.language,
+                                      size: 16,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'siviq.top',
+                                      style: TextStyle(
+                                        color: AppColors.primaryGreen,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.open_in_new,
+                                      size: 14,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: BrandMark(size: 38),
-                    ),
-                    const Divider(),
-                    _DrawerItem(
-                      icon: Icons.help_outline,
-                      label: 'FAQ',
-                      route: '/legal/faq',
-                    ),
-                    _DrawerItem(
-                      icon: Icons.groups_outlined,
-                      label: 'Community Guidelines',
-                      route: '/legal/community-guidelines',
-                    ),
-                    _DrawerItem(
-                      icon: Icons.gavel_outlined,
-                      label: 'Terms',
-                      route: '/legal/terms',
-                    ),
-                    _DrawerItem(
-                      icon: Icons.assignment_return_outlined,
-                      label: 'Appeals',
-                      route: '/legal/appeals',
-                    ),
-                    _DrawerItem(
-                      icon: Icons.privacy_tip_outlined,
-                      label: 'Privacy Policy',
-                      route: '/legal/privacy-policy',
-                    ),
-                    _DrawerItem(
-                      icon: Icons.info_outline,
-                      label: 'About',
-                      route: '/legal/about',
-                    ),
-                    _DrawerItem(
-                      icon: Icons.mail_outline,
-                      label: 'Contact',
-                      route: '/legal/contact',
-                    ),
-                  ],
+                      // Menu items
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                              child: Text(
+                                'Legal & Policies',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                  color: AppColors.grey,
+                                ),
+                              ),
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.help_outline,
+                              label: 'FAQ',
+                              description: 'Frequently asked questions',
+                              route: '/legal/faq',
+                              color: Colors.blue,
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.groups_outlined,
+                              label: 'Community Guidelines',
+                              description: 'Rules and standards',
+                              route: '/legal/community-guidelines',
+                              color: Colors.purple,
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.gavel_outlined,
+                              label: 'Terms of Service',
+                              description: 'Terms and conditions',
+                              route: '/legal/terms',
+                              color: Colors.orange,
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.assignment_return_outlined,
+                              label: 'Appeals Process',
+                              description: 'Appeal decisions',
+                              route: '/legal/appeals',
+                              color: Colors.red,
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.privacy_tip_outlined,
+                              label: 'Privacy Policy',
+                              description: 'How we protect your data',
+                              route: '/legal/privacy-policy',
+                              color: Colors.green,
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                              child: Text(
+                                'About',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                  color: AppColors.grey,
+                                ),
+                              ),
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.info_outline,
+                              label: 'About SIVIQ',
+                              description: 'Learn about our mission',
+                              route: '/legal/about',
+                              color: Colors.cyan,
+                            ),
+                            _AdvancedDrawerItem(
+                              icon: Icons.mail_outline,
+                              label: 'Contact Us',
+                              description: 'Get in touch',
+                              route: '/legal/contact',
+                              color: Colors.indigo,
+                            ),
+                            const SizedBox(height: 16),
+                            // Website link card
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: InkWell(
+                                onTap: () => _launchWebsite(),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.public,
+                                        color: AppColors.white,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      const Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Visit Our Website',
+                                              style: TextStyle(
+                                                color: AppColors.white,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              'siviq.top',
+                                              style: TextStyle(
+                                                color: AppColors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.arrow_forward_ios,
+                                        color: AppColors.white,
+                                        size: 16,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1009,6 +1170,86 @@ class _DrawerItem extends StatelessWidget {
       leading: Icon(icon),
       title: Text(label),
       onTap: route == null ? null : () => context.push(route!),
+    );
+  }
+}
+
+class _AdvancedDrawerItem extends StatelessWidget {
+  const _AdvancedDrawerItem({
+    required this.icon,
+    required this.label,
+    required this.description,
+    this.route,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String description;
+  final String? route;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: route == null ? null : () => context.push(route!),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: color,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppColors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (route != null)
+                  const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.white,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
