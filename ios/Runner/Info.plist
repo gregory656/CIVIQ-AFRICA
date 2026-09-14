@@ -26,6 +26,17 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>top.siviq.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>siviq</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>SIVIQ uses Face ID to unlock the app after your session times out.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

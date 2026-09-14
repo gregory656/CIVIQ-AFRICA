@@ -37,6 +37,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ref.read(supabaseClientProvider).auth.currentSession == null
         ? '/intro'
         : '/home',
+    errorBuilder: (context, state) => const IntroScreen(),
     routes: [
       GoRoute(path: '/intro', builder: (context, state) => const IntroScreen()),
       GoRoute(path: '/terms', builder: (context, state) => const TermsScreen()),
@@ -201,6 +202,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           initialLegalAccepted:
               state.uri.queryParameters['acceptedLegal'] == 'true',
         ),
+      ),
+      // Supabase and the website can both return an OAuth or password-reset
+      // session to the app. Android delivers `siviq://login` as `/login` and
+      // the verified HTTPS app link as `/app/login`.
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const AuthScreen(initialMode: 'login'),
+      ),
+      GoRoute(
+        path: '/app/login',
+        builder: (context, state) => const AuthScreen(initialMode: 'login'),
       ),
       GoRoute(
         path: '/profile-setup',

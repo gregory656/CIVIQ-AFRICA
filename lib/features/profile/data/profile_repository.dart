@@ -417,6 +417,21 @@ class ProfileRepository {
     await _client.from('profiles').upsert(payload);
   }
 
+  Future<void> updateLocation({
+    required String userId,
+    required int countyId,
+    required int subcountyId,
+  }) {
+    return _client
+        .from('profiles')
+        .update({
+          'county_id': countyId,
+          'subcounty_id': subcountyId,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', userId);
+  }
+
   Future<bool> isUsernameTaken(
     String username, {
     String? excludingUserId,

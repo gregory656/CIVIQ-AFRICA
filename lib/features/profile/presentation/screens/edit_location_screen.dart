@@ -23,7 +23,7 @@ class _EditLocationScreenState extends ConsumerState<EditLocationScreen> {
   bool _saving = false;
   String? _error;
 
-  Future<void> _save(CiviqProfile profile) async {
+  Future<void> _save() async {
     if (_county == null || _subcounty == null) {
       setState(() => _error = 'Choose both your county and constituency.');
       return;
@@ -37,11 +37,8 @@ class _EditLocationScreenState extends ConsumerState<EditLocationScreen> {
       if (user == null) {
         throw Exception('You need to sign in again.');
       }
-      await ref
-          .read(profileRepositoryProvider)
-          .upsertProfile(
+      await ref.read(profileRepositoryProvider).updateLocation(
             userId: user.id,
-            email: user.email ?? profile.email,
             countyId: _county!.id,
             subcountyId: _subcounty!.id,
           );
@@ -163,7 +160,7 @@ class _EditLocationScreenState extends ConsumerState<EditLocationScreen> {
                   ],
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: _saving ? null : () => _save(profile),
+                    onPressed: _saving ? null : _save,
                     child: Text(_saving ? 'Saving...' : 'Save location'),
                   ),
                 ],

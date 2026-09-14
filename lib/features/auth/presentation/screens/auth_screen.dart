@@ -582,7 +582,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _loading ? null : _googleSignIn,
-                    icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                    icon: const _GoogleLogo(size: 20),
                     label: const Text('Continue with Google'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(52),
@@ -593,8 +593,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                     onPressed: _loading ? null : () => _openWebPath('/login'),
                     child: const Text('Login through web'),
                   ),
-                  const SizedBox(height: 18),
-                  _SocialAuthSection(isLogin: _isLogin),
                   const SizedBox(height: 14),
                   Center(
                     child: Wrap(
@@ -900,67 +898,56 @@ class _PasswordStrength extends StatelessWidget {
   }
 }
 
-class _SocialAuthSection extends StatelessWidget {
-  const _SocialAuthSection({required this.isLogin});
+class _GoogleLogo extends StatelessWidget {
+  const _GoogleLogo({required this.size});
 
-  final bool isLogin;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Row(
-          children: [
-            Expanded(child: Divider(color: AppColors.border)),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'or continue with',
-                style: TextStyle(color: AppColors.grey, fontSize: 12),
-              ),
-            ),
-            Expanded(child: Divider(color: AppColors.border)),
-          ],
-        ),
-        const SizedBox(height: 14),
-        OutlinedButton(
-          onPressed: () {},
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.black,
-            side: const BorderSide(color: AppColors.border),
-            backgroundColor: AppColors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: AppColors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Text(
-                  'G',
-                  style: TextStyle(
-                    color: Color(0xFF4285F4),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(isLogin ? 'Continue with Google' : 'Sign up with Google'),
-            ],
-          ),
-        ),
-      ],
+    return CustomPaint(size: Size.square(size), painter: _GoogleLogoPainter());
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * .19;
+    final center = size.center(Offset.zero);
+    final radius = (size.width - stroke) / 2;
+    const colors = [
+      Color(0xFF4285F4),
+      Color(0xFF34A853),
+      Color(0xFFFBBC05),
+      Color(0xFFEA4335),
+    ];
+    const starts = [-.22, .60, 2.12, 3.69];
+    const sweeps = [.86, 1.49, 1.49, .86];
+    for (var index = 0; index < colors.length; index++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        starts[index] * 3.141592653589793,
+        sweeps[index] * 3.141592653589793,
+        false,
+        Paint()
+          ..color = colors[index]
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke
+          ..strokeCap = StrokeCap.butt,
+      );
+    }
+    canvas.drawLine(
+      Offset(center.dx, center.dy),
+      Offset(size.width, center.dy),
+      Paint()
+        ..color = const Color(0xFF4285F4)
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.butt,
     );
   }
+
+  @override
+  bool shouldRepaint(covariant _GoogleLogoPainter oldDelegate) => false;
 }
 
 class _CivicHero extends StatelessWidget {
