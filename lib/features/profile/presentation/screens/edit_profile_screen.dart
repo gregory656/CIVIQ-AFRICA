@@ -153,7 +153,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 OutlinedButton.icon(
                   onPressed: _saving
                       ? null
-                      : () => context.push('/profile-setup'),
+                      : () => context.push('/profile/edit-location'),
                   icon: const Icon(Icons.location_on_outlined),
                   label: const Text('Update county and constituency'),
                 ),

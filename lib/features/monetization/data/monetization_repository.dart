@@ -154,17 +154,12 @@ class MonetizationRepository {
   }) async {
     final uniqueIds = interestIds.toSet().take(5).toList(growable: false);
     if (uniqueIds.every((id) => id.startsWith('fallback-'))) return;
-    await _client.from('user_interests').delete().eq('user_id', userId);
-    if (uniqueIds.isEmpty) return;
-    await _client
-        .from('user_interests')
-        .insert(
-          uniqueIds
-              .map((interestId) {
-                return {'user_id': userId, 'interest_id': interestId};
-              })
-              .toList(growable: false),
-        );
+    // One database transaction prevents a temporary empty selection when a
+    // network request fails between delete and insert.
+    await _client.rpc(
+      'replace_user_interests',
+      params: {'selected_interest_ids': uniqueIds},
+    );
   }
 
   Future<void> recordSearch({

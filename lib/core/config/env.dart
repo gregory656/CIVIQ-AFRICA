@@ -7,6 +7,11 @@ class Env {
   static String get cloudinaryUploadPreset =>
       _required('CLOUDINARY_UPLOAD_PRESET');
 
+  // This is deliberately public configuration. Authentication is still owned by
+  // Supabase; these pages are just the web UI for recovery and account actions.
+  static String get websiteUrl =>
+      dotenv.maybeGet('SIVIQ_WEBSITE_URL')?.trim() ?? 'https://siviq.top';
+
   static String _required(String key) {
     final value = dotenv.maybeGet(key);
     if (value == null || value.trim().isEmpty) {

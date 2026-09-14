@@ -19,6 +19,7 @@ class AuthRepository {
 
   Session? get currentSession => _client.auth.currentSession;
   User? get currentUser => _client.auth.currentUser;
+  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
 
   Future<AuthResponse> signUp({
     required String email,
@@ -30,8 +31,25 @@ class AuthRepository {
   Future<AuthResponse> signIn({
     required String email,
     required String password,
-  }) {
-    return _client.auth.signInWithPassword(email: email, password: password);
+  }) async {
+    if (email.contains('@')) {
+      return _client.auth.signInWithPassword(email: email, password: password);
+    }
+    final response = await _client.functions.invoke(
+      'sign-in-with-username',
+      body: {'username': email, 'password': password},
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    final session = Map<String, dynamic>.from(data['session'] as Map);
+    return _client.auth.setSession(session['refresh_token'] as String);
+  }
+
+  Future<bool> signInWithGoogle() async {
+    return _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: 'https://siviq.top/app/login',
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
   }
 
   Future<void> signOut() async {

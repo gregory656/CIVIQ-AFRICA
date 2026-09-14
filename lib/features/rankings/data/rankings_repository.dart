@@ -269,12 +269,47 @@ class RankingsRepository {
     final source = directory
         .map((leader) => snapshotsByLeader[leader.leaderId] ?? leader)
         .toList(growable: false);
-    return _applyFilter(
+    final filtered = _applyFilter(
       source,
       filter,
       viewerCountyId: viewerCountyId,
       viewerSubcountyId: viewerSubcountyId,
     );
+    // A directory row should never render as "--" merely because a snapshot
+    // has not been generated yet. Live ranks are a deterministic fallback;
+    // snapshot ranks replace them as soon as Sunday’s job succeeds.
+    filtered.sort((a, b) {
+      final scoreOrder = b.score.compareTo(a.score);
+      if (scoreOrder != 0) return scoreOrder;
+      return a.leaderName.compareTo(b.leaderName);
+    });
+    return [
+      for (var index = 0; index < filtered.length; index++)
+        filtered[index].rank == null
+            ? LeaderRanking(
+                leaderId: filtered[index].leaderId,
+                leaderName: filtered[index].leaderName,
+                role: filtered[index].role,
+                partyName: filtered[index].partyName,
+                countyId: filtered[index].countyId,
+                countyName: filtered[index].countyName,
+                subcountyId: filtered[index].subcountyId,
+                subcountyName: filtered[index].subcountyName,
+                hasSnapshot: filtered[index].hasSnapshot,
+                snapshotWeek: filtered[index].snapshotWeek,
+                rank: index + 1,
+                score: filtered[index].score,
+                movement: filtered[index].movement,
+                totalProjects: filtered[index].totalProjects,
+                completedProjects: filtered[index].completedProjects,
+                stalledProjects: filtered[index].stalledProjects,
+                approvalCount: filtered[index].approvalCount,
+                disapprovalCount: filtered[index].disapprovalCount,
+                isTopTwenty: filtered[index].isTopTwenty,
+                demographicMetadata: filtered[index].demographicMetadata,
+              )
+            : filtered[index],
+    ];
   }
 
   Future<List<LeaderRanking>> _fetchDirectory(String role) async {

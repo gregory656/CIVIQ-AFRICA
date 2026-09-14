@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/friendly_error.dart';
 import '../../../../core/widgets/brand_mark.dart';
 import '../../../../features/legal/data/legal_repository.dart';
+import '../../../profile/data/profile_repository.dart';
 import '../../data/auth_repository.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -63,6 +68,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
   late final AnimationController _introController;
+  StreamSubscription<AuthState>? _authSubscription;
 
   bool _isLogin = false;
   bool _loading = false;
@@ -83,6 +89,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     _emailFocus.addListener(_handleFocusChange);
     _passwordFocus.addListener(_handleFocusChange);
     _passwordController.addListener(() => setState(() {}));
+    _authSubscription = ref
+        .read(authRepositoryProvider)
+        .authStateChanges
+        .listen((state) async {
+          if (state.event != AuthChangeEvent.signedIn ||
+              state.session?.user == null) {
+            return;
+          }
+          final user = state.session!.user;
+          ref.read(currentAuthUserIdProvider.notifier).state = user.id;
+          // OAuth returns through the browser after this page is already open.
+          // Finish the journey when Supabase has restored the verified session.
+          final profile = await ref
+              .read(profileRepositoryProvider)
+              .getProfile(user.id);
+          if (!mounted) return;
+          context.go(profile == null ? '/profile-setup' : '/home');
+        });
   }
 
   @override
@@ -92,6 +116,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     _emailFocus.dispose();
     _passwordFocus.dispose();
     _introController.dispose();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
@@ -151,6 +176,41 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         );
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _openWebPath(String path) async {
+    final uri = Uri.parse('https://siviq.top$path');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      setState(
+        () => _error = 'We could not open the SIVIQ website. Please try again.',
+      );
+    }
+  }
+
+  Future<void> _googleSignIn() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final started = await ref.read(authRepositoryProvider).signInWithGoogle();
+      if (!started && mounted) {
+        setState(() => _error = 'Google sign-in could not be started.');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = friendlyErrorMessage(
+            error,
+            fallback:
+                'Google sign-in is not available right now. Please try again.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -319,12 +379,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         _AuthField(
                           controller: _emailController,
                           focusNode: _emailFocus,
-                          label: 'Email address',
-                          hint: 'you@example.com',
+                          label: _isLogin
+                              ? 'Email or username'
+                              : 'Email address',
+                          hint: _isLogin
+                              ? 'you@example.com or your username'
+                              : 'you@example.com',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             final text = value?.trim() ?? '';
+                            if (_isLogin && text.isNotEmpty) return null;
                             if (!RegExp(
                               r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$',
                             ).hasMatch(text)) {
@@ -393,7 +458,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: _loading ? null : () {},
+                              onPressed: _loading
+                                  ? null
+                                  : () => _openWebPath('/forgot-password'),
                               child: const Text('Forgot password?'),
                             ),
                           ),
@@ -511,6 +578,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                               ),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _loading ? null : _googleSignIn,
+                    icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                    label: const Text('Continue with Google'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: _loading ? null : () => _openWebPath('/login'),
+                    child: const Text('Login through web'),
                   ),
                   const SizedBox(height: 18),
                   _SocialAuthSection(isLogin: _isLogin),

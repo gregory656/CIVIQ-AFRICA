@@ -389,7 +389,19 @@ The output is normally:
 build/app/outputs/bundle/release/app-release.aab
 ```
 
-## 13. Key Mental Model
+## 13. Shared web authentication and account lifecycle
+
+The Android app and `https://siviq.top` use this same Supabase project. The website is another client, not another backend or database.
+
+- Flutter opens `/forgot-password` and `/login` on the website. The website owns the recovery UI; Supabase owns recovery tokens and sessions.
+- Google OAuth is started by Flutter with a redirect to `https://siviq.top/app/login`. Android also accepts the `siviq://login` fallback scheme and verified `https://siviq.top/app/...` links.
+- Email-or-username login is supported through `sign-in-with-username`. The function resolves a profile server-side, authenticates with Supabase Auth, and returns only a session or a generic invalid-login result. It must be deployed before username login is released.
+- `delete-account` uses the caller’s verified JWT and the Supabase service role only inside the Edge Function. Browser and Flutter clients must never receive that secret.
+- `replace_user_interests` performs delete-and-insert in one database transaction. This prevents an intermittent request from leaving a user with no interests.
+
+`siviqweb.md` contains the website implementation brief and the exact dashboard configuration checklist. Apply `20260914110000_auth_profile_and_ranking_hardening.sql` and deploy both new Edge Functions before enabling the web flows.
+
+## 14. Key Mental Model
 
 Think of SIVIQ's backend as five cooperating layers:
 

@@ -61,7 +61,7 @@ class LegalDocumentScreen extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppColors.white.withOpacity(0.2),
+                            color: AppColors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Icon(
@@ -88,7 +88,7 @@ class LegalDocumentScreen extends StatelessWidget {
                                 'Version $currentPolicyVersion',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: AppColors.white.withOpacity(0.8),
+                                  color: AppColors.white.withValues(alpha: 0.8),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -103,7 +103,7 @@ class LegalDocumentScreen extends StatelessWidget {
                         content.subtitle!,
                         style: TextStyle(
                           fontSize: 14,
-                          color: AppColors.white.withOpacity(0.9),
+                          color: AppColors.white.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -116,20 +116,17 @@ class LegalDocumentScreen extends StatelessWidget {
             SliverPadding(
               padding: const EdgeInsets.all(16),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final section = content.sections[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _SectionCard(
-                        section: section,
-                        color: content.color,
-                        index: index,
-                      ),
-                    );
-                  },
-                  childCount: content.sections.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final section = content.sections[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _SectionCard(
+                      section: section,
+                      color: content.color,
+                      index: index,
+                    ),
+                  );
+                }, childCount: content.sections.length),
               ),
             ),
             // Quick Actions
@@ -149,13 +146,15 @@ class LegalDocumentScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ...content.quickActions.map((action) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: _QuickActionButton(
-                              action: action,
-                              color: content.color,
-                            ),
-                          )),
+                      ...content.quickActions.map(
+                        (action) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _QuickActionButton(
+                            action: action,
+                            color: content.color,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -202,7 +201,8 @@ _LegalContent2 _content(LegalDocument document) {
         title: 'Privacy Policy',
         color: Colors.green,
         icon: Icons.privacy_tip_outlined,
-        subtitle: 'Your data, your rights. Learn how we protect your information.',
+        subtitle:
+            'Your data, your rights. Learn how we protect your information.',
         sections: [
           _LegalSection(
             title: '📊 Data We Collect',
@@ -435,7 +435,8 @@ _LegalContent2 _content(LegalDocument document) {
           ),
           _LegalSection(
             title: '📞 Contact',
-            body: 'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com\nWebsite: siviq.top',
+            body:
+                'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com\nWebsite: siviq.top',
           ),
         ],
         quickActions: [
@@ -470,7 +471,8 @@ _LegalContent2 _content(LegalDocument document) {
           ),
           _LegalSection(
             title: '📤 Send Your Appeal',
-            body: 'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com\n\nWe typically respond within 24-48 hours during business days.',
+            body:
+                'WhatsApp: +254719637416\nEmail: adminsiviq@gmail.com\n\nWe typically respond within 24-48 hours during business days.',
           ),
           _LegalSection(
             title: '⚖️ Fair Use',
@@ -505,7 +507,8 @@ _LegalContent2 _content(LegalDocument document) {
         sections: [
           _LegalSection(
             title: '💬 Support Channels',
-            body: 'WhatsApp: +254719637416 (Fastest response)\nEmail: adminsiviq@gmail.com\n\nWe typically respond within 24 hours.',
+            body:
+                'WhatsApp: +254719637416 (Fastest response)\nEmail: adminsiviq@gmail.com\n\nWe typically respond within 24 hours.',
           ),
           _LegalSection(
             title: '🐛 Report An Issue',
@@ -600,7 +603,7 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -613,7 +616,7 @@ class _SectionCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -672,10 +675,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _QuickActionButton extends StatelessWidget {
-  const _QuickActionButton({
-    required this.action,
-    required this.color,
-  });
+  const _QuickActionButton({required this.action, required this.color});
 
   final _QuickAction action;
   final Color color;
@@ -724,13 +724,6 @@ class _QuickActionButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _LegalContent {
-  const _LegalContent({required this.title, required this.sections});
-
-  final String title;
-  final List<_LegalSection> sections;
 }
 
 class _LegalSection {

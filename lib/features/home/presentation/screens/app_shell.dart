@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +11,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/friendly_error.dart';
 import '../../../../core/widgets/brand_mark.dart';
 import '../../../../core/widgets/verified_badge.dart';
-import '../../../../features/account/data/account_repository.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/chats/data/repositories/chat_repository.dart';
 import '../../../../features/home/data/social_post_repository.dart';
@@ -251,7 +249,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                             const SizedBox(height: 16),
                             // Website link card
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: InkWell(
                                 onTap: () => _launchWebsite(),
                                 borderRadius: BorderRadius.circular(12),
@@ -879,32 +879,14 @@ class _DangerZoneActionsState extends ConsumerState<_DangerZoneActions> {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final user = ref.read(authRepositoryProvider).currentUser;
-    final email = user?.email;
-    if (user == null || email == null) return;
-    final passwordController = TextEditingController();
-    final password = await showDialog<String>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
         title: const Text('Delete account?'),
         content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Your account will be scheduled for deletion with a 30-day recovery period. Confirm your password to continue.',
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock_outline),
-                ),
-              ),
-            ],
+          child: const Text(
+            'For your security, SIVIQ will open its secure account website. Sign in or re-authenticate there before permanently deleting your account.',
           ),
         ),
         actions: [
@@ -912,59 +894,23 @@ class _DangerZoneActionsState extends ConsumerState<_DangerZoneActions> {
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Data export is coming soon')),
-              );
-            },
-            child: const Text('Export data first'),
-          ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(passwordController.text),
+            onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
-            child: const Text('Continue'),
+            child: const Text('Open secure website'),
           ),
         ],
       ),
     );
-    passwordController.dispose();
-    if (password == null || password.isEmpty) return;
-
-    try {
-      await ref
-          .read(authRepositoryProvider)
-          .signIn(email: email, password: password);
-      if (!mounted) return;
-      await ref.read(accountRepositoryProvider).requestAccountDeletion(user.id);
-      if (!mounted) return;
-      await ref
-          .read(securityRepositoryProvider)
-          .logSecurityEvent('account_deletion_requested');
-      if (!mounted) return;
-      _clearUserScopedProviders(ref);
-      ref.read(currentAuthUserIdProvider.notifier).state = null;
-      await ref.read(authRepositoryProvider).signOut();
-      if (!mounted) return;
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account deletion requested')),
-        );
-        context.go('/intro');
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              friendlyErrorMessage(
-                error,
-                fallback: 'Could not delete account. Please try again.',
-              ),
-            ),
-          ),
-        );
-      }
+    if (confirmed != true) return;
+    final opened = await launchUrl(
+      Uri.parse('https://siviq.top/delete-account'),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the SIVIQ website.')),
+      );
     }
   }
 
@@ -1153,23 +1099,6 @@ class _ProfileError extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _DrawerItem extends StatelessWidget {
-  const _DrawerItem({required this.icon, required this.label, this.route});
-
-  final IconData icon;
-  final String label;
-  final String? route;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      onTap: route == null ? null : () => context.push(route!),
     );
   }
 }
